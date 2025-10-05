@@ -1,0 +1,79 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      PORT: ${BACKEND_PORT:-8080}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER:-ibc_user}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-ibc_password}
+      DB_NAME: ${MYSQL_DATABASE:-ibc_db}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ibc-internal
+      - ibc-public
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    networks:
+      - ibc-public
+    expose:
+      - "5173"
+
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ibc_db}
+      MYSQL_USER: ${MYSQL_USER:-ibc_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ibc_password}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 5s
+      retries: 5
+      timeout: 3s
+    networks:
+      - ibc-internal
+
+  nginx:
+    build: ./nginx
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - ibc-public
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:5.2
+    platform: linux/amd64
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 64M
+    depends_on:
+      - db
+    networks:
+      - ibc-internal
+      - ibc-public
+    expose:
+      - "80"
+
+networks:
+  ibc-internal:
+    driver: bridge
+    internal: true
+  ibc-public:
+    driver: bridge
+
+volumes:
+  db_data:
