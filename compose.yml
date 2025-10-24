@@ -25,7 +25,7 @@ services:
       - "5173"
 
   db:
-    image: mysql:8.0
+    image: mysql:8.4.7
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
@@ -54,7 +54,7 @@ services:
       - ibc-public
 
   phpmyadmin:
-    image: phpmyadmin/phpmyadmin:5.2
+    image: phpmyadmin/phpmyadmin:5.2.3
     platform: linux/amd64
     environment:
       PMA_HOST: db

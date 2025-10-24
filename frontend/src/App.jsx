@@ -1,6 +1,8 @@
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import Page2 from './Page2.jsx';
 
-export default function App() {
+function ApiTestPage() {
   const [apiStatus, setApiStatus] = useState('...');
   const [loading, setLoading] = useState(true);
 
@@ -24,5 +26,19 @@ export default function App() {
         Backend status : <strong>{loading ? 'chargement...' : apiStatus}</strong>
       </p>
     </main>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <nav>
+        <Link to="/">Accueil</Link> | <Link to="/page2">Page 2</Link>
+      </nav>
+      <Routes>
+        <Route path="/" element={<ApiTestPage />} />
+        <Route path="/page2" element={<Page2 />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
