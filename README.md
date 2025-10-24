@@ -17,7 +17,7 @@
 ├── backend/        # API Express + Dockerfile dédié
 ├── frontend/       # Application React + Dockerfile dédié
 ├── nginx/          # Proxy inverse Nginx + Dockerfile
-├── docker-compose.yml
+├── compose.yml
 ├── .env.example    # Variables d'environnement pour Compose
 └── README.md
 ```
