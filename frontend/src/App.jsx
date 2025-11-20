@@ -60,7 +60,9 @@ function LandingPage() {
           <div className="hero-visual">
             <div className="device-frame">
               <div className="device-glow" />
-              <div className="device-screen">IBC</div>
+              <div className="device-screen">
+                <img src="/src/img/imageindex.jpg"/>
+              </div>
             </div>
           </div>
         </section>

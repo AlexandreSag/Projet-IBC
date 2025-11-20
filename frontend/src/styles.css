@@ -244,10 +244,14 @@ main.landing {
   background: linear-gradient(180deg, var(--couleur-surface-claire) 0%, var(--couleur-ecran) 100%);
   display: grid;
   place-items: center;
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--couleur-texte);
-  letter-spacing: 0.08em;
+  overflow: hidden;
+}
+
+.device-screen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 16px;
 }
 
 .features-section {
