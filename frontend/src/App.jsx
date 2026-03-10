@@ -1,7 +1,16 @@
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Link,
+  Navigate,
+  useLocation,
+} from 'react-router-dom';
 import AuthForm from './components/AuthForm.jsx';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
+import DashboardPage from './components/DashboardPage.jsx';
+import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 
 const features = [
   {
@@ -61,7 +70,7 @@ function LandingPage() {
             <div className="device-frame">
               <div className="device-glow" />
               <div className="device-screen">
-                <img src="/src/img/imageindex.jpg"/>
+                <img src="/src/img/imageindex.jpg" alt="Aperçu de l'application Budgie" />
               </div>
             </div>
           </div>
@@ -95,6 +104,11 @@ function LandingPage() {
 
 function AuthPage({ mode }) {
   const isRegister = mode === 'register';
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (!isLoading && isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="auth-page">
@@ -135,17 +149,46 @@ function AuthPage({ mode }) {
   );
 }
 
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="auth-page">
+        <p className="lede">Vérification de la session...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  return children;
+}
+
 function AppShell() {
   const location = useLocation();
   const isAuthRoute = location.pathname === '/login' || location.pathname === '/register';
+  const isDashboardRoute = location.pathname.startsWith('/dashboard');
 
   return (
     <>
-      {!isAuthRoute && <Header />}
+      {!isAuthRoute && !isDashboardRoute && <Header />}
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<AuthPage mode="login" />} />
         <Route path="/register" element={<AuthPage mode="register" />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );
@@ -153,8 +196,10 @@ function AppShell() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppShell />
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <AppShell />
+      </BrowserRouter>
+    </AuthProvider>
   );
 }

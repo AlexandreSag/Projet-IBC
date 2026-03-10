@@ -57,4 +57,5 @@ docker compose up --build
 
 - Le frontend Vite proxifie les appels `/api` vers le service `backend`, évitant d'ouvrir un port supplémentaire.
 - Le backend expose une route de santé `/api/health` qui vérifie la connexion MySQL.
+- Le backend expose `POST /api/login` (émission JWT), `GET /api/me` et `POST /api/logout` (routes protégées par middleware JWT).
 - Pour relancer depuis zéro la base de données, supprimez le volume Docker `projet-ibc_db_data`.

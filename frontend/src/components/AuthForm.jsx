@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 
 const PASSWORD_HINT =
   '12 caractères minimum avec majuscule, minuscule, chiffre et caractère spécial (! @ # ? % & *).';
@@ -15,6 +17,9 @@ function isStrongPassword(password) {
 
 export default function AuthForm({ mode, footer }) {
   const isRegister = mode === 'register';
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login, register } = useAuth();
   const [form, setForm] = useState({
     nom: '',
     prenom: '',
@@ -24,10 +29,9 @@ export default function AuthForm({ mode, footer }) {
   const [message, setMessage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { title, endpoint } = useMemo(
+  const { title } = useMemo(
     () => ({
       title: isRegister ? 'Inscription' : 'Connexion',
-      endpoint: isRegister ? '/api/register' : '/api/login',
     }),
     [isRegister],
   );
@@ -64,16 +68,7 @@ export default function AuthForm({ mode, footer }) {
             mot_de_passe: form.mot_de_passe,
           };
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Une erreur est survenue.');
-      }
+      const data = isRegister ? await register(payload) : await login(payload);
 
       const userLabel =
         data.utilisateur?.prenom ||
@@ -91,6 +86,11 @@ export default function AuthForm({ mode, footer }) {
         mot_de_passe: '',
         ...(isRegister ? { email: '', nom: '', prenom: '' } : {}),
       }));
+
+      if (!isRegister) {
+        const redirectPath = location.state?.from || '/dashboard';
+        navigate(redirectPath, { replace: true });
+      }
     } catch (error) {
       setMessage({ type: 'error', text: error.message || 'Impossible de traiter la requête.' });
     } finally {

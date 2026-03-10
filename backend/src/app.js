@@ -1,12 +1,19 @@
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const { getPool } = require('./config/database');
 const authRoutes = require('./routes/auth');
 
 function createApp() {
   const app = express();
 
-  app.use(cors());
+  app.use(
+    cors({
+      origin: true,
+      credentials: true,
+    }),
+  );
+  app.use(cookieParser());
   app.use(express.json());
 
   app.get('/api/health', async (req, res) => {

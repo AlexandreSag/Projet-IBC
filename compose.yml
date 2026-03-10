@@ -8,6 +8,9 @@ services:
       DB_USER: ${MYSQL_USER:-ibc_user}
       DB_PASSWORD: ${MYSQL_PASSWORD:-ibc_password}
       DB_NAME: ${MYSQL_DATABASE:-ibc_db}
+      JWT_SECRET: ${JWT_SECRET:-change_me_super_secret}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      JWT_COOKIE_TTL_MS: ${JWT_COOKIE_TTL_MS:-86400000}
     depends_on:
       db:
         condition: service_healthy
