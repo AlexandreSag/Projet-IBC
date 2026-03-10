@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -12,11 +13,70 @@ export default function DashboardPage() {
     .map((chunk) => chunk[0]?.toUpperCase() || '')
     .join('');
 
+  const [comptes, setComptes] = useState([]);
+  const [loadingComptes, setLoadingComptes] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newAccount, setNewAccount] = useState({
+    nom_court: '',
+    description: '',
+    date_creation: new Date().toISOString().split('T')[0],
+    solde_initial: 0,
+  });
+
+  const handleAddAccount = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('/api/comptes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAccount),
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setComptes([{ ...data.compte, solde: parseFloat(data.compte.solde_initial || 0) }, ...comptes]);
+        setShowAddModal(false);
+        setNewAccount({
+          nom_court: '',
+          description: '',
+          date_creation: new Date().toISOString().split('T')[0],
+          solde_initial: 0,
+        });
+      } else {
+        const err = await response.json();
+        alert(err.error || 'Erreur lors de la création du compte');
+      }
+    } catch {
+      alert('Erreur réseau');
+    }
+  };
+
+  useEffect(() => {
+    async function fetchComptes() {
+      try {
+        const response = await fetch('/api/comptes', { credentials: 'include' });
+        if (response.ok) {
+          const data = await response.json();
+          setComptes(data.comptes || []);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des comptes:', error);
+      } finally {
+        setLoadingComptes(false);
+      }
+    }
+    fetchComptes();
+  }, []);
+
+  const totalSolde = comptes.reduce((acc, compte) => acc + (compte.solde || 0), 0);
+  const formattedTotalSolde = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(totalSolde);
+
+
   const summaryCards = [
     {
       title: 'Solde total',
-      amount: '18 881,25 €',
-      detail: '↗ +5.2% ce mois',
+      amount: formattedTotalSolde,
+      detail: 'Actualisé aujourd\'hui',
       tone: 'default',
       icon: 'fa-solid fa-dollar-sign',
     },
@@ -41,13 +101,6 @@ export default function DashboardPage() {
       tone: 'info',
       icon: 'fa-solid fa-sparkles',
     },
-  ];
-
-  const accountRows = [
-    { name: 'Compte courant', subtitle: 'Compte bancaire', amount: '3 240,50 €', icon: 'fa-solid fa-building-columns' },
-    { name: 'Épargne', subtitle: 'Livret A', amount: '12 850,00 €', icon: 'fa-solid fa-money-bill' },
-    { name: 'Portefeuille crypto', subtitle: 'Blockchain', amount: '2 450,75 €', icon: 'fa-solid fa-link' },
-    { name: 'Espèces', subtitle: 'Liquidités', amount: '340,00 €', icon: 'fa-solid fa-wallet' },
   ];
 
   const monthlyData = [
@@ -125,25 +178,33 @@ export default function DashboardPage() {
               <h2>Mes comptes</h2>
               <p>Aperçu de tous vos comptes</p>
             </div>
-            <button type="button" className="dashboard-add-btn">
+            <button type="button" className="dashboard-add-btn" onClick={() => setShowAddModal(true)}>
               <i className="fa-solid fa-plus" aria-hidden="true" /> Ajouter
             </button>
           </div>
           <div className="dashboard-account-list">
-            {accountRows.map((account) => (
-              <article key={account.name} className="dashboard-account-item">
-                <div className="dashboard-account-main">
-                  <span className="dashboard-account-icon">
-                    <i className={account.icon} aria-hidden="true" />
-                  </span>
-                  <div>
-                    <strong>{account.name}</strong>
-                    <p>{account.subtitle}</p>
+            {loadingComptes ? (
+              <p style={{ padding: '1rem', color: '#666' }}>Chargement des comptes...</p>
+            ) : comptes.length > 0 ? (
+              comptes.map((compte) => (
+                <article key={compte.id} className="dashboard-account-item">
+                  <div className="dashboard-account-main">
+                    <span className="dashboard-account-icon">
+                      <i className="fa-solid fa-building-columns" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <strong>{compte.nom_court}</strong>
+                      <p>{compte.description || 'Compte bancaire'}</p>
+                    </div>
                   </div>
-                </div>
-                <strong>{account.amount}</strong>
-              </article>
-            ))}
+                  <strong>
+                    {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(compte.solde)}
+                  </strong>
+                </article>
+              ))
+            ) : (
+              <p style={{ padding: '1rem', color: '#666' }}>Aucun compte trouvé.</p>
+            )}
           </div>
         </section>
 
@@ -178,6 +239,36 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+
+        {showAddModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ backgroundColor: '#fff', color: '#333', padding: '2rem', borderRadius: '8px', width: '100%', maxWidth: '400px' }}>
+              <h3 style={{ marginTop: 0 }}>Ajouter un compte</h3>
+              <form onSubmit={handleAddAccount} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label>Nom du compte</label>
+                  <input type="text" required value={newAccount.nom_court} onChange={e => setNewAccount({...newAccount, nom_court: e.target.value})} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label>Description</label>
+                  <input type="text" value={newAccount.description} onChange={e => setNewAccount({...newAccount, description: e.target.value})} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label>Date de création</label>
+                  <input type="date" required value={newAccount.date_creation} onChange={e => setNewAccount({...newAccount, date_creation: e.target.value})} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label>Solde initial</label>
+                  <input type="number" step="0.01" value={newAccount.solde_initial} onChange={e => setNewAccount({...newAccount, solde_initial: e.target.value})} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
+                  <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '0.5rem 1rem', background: '#f8f9fa', border: '1px solid #ddd', color: '#333', borderRadius: '4px', cursor: 'pointer' }}>Annuler</button>
+                  <button type="submit" style={{ padding: '0.5rem 1rem', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Ajouter</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
