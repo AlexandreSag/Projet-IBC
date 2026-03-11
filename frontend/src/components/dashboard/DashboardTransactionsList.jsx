@@ -1,0 +1,101 @@
+import { formatDateForDisplay } from '../../utils/dateUtils';
+
+export default function DashboardTransactionsList({
+  transactions,
+  loading,
+  filterText,
+  onFilterChange,
+  onOpenManagerModal,
+  euroFormatter,
+  showFilterInput,
+  setShowFilterInput
+}) {
+  return (
+    <section className="dashboard-panel">
+      <div className="dashboard-panel-header">
+        <div>
+          <h2>Transactions récentes</h2>
+          <p>Historique des occurrences de transactions</p>
+        </div>
+        <div className="dashboard-transaction-actions">
+          <button
+            type="button"
+            className="btn ghost small"
+            onClick={() => setShowFilterInput((prev) => !prev)}
+          >
+            <i className="fa-solid fa-filter" aria-hidden="true" /> Filtrer
+          </button>
+          <button type="button" className="btn primary small" onClick={onOpenManagerModal}>
+            <i className="fa-solid fa-gear" aria-hidden="true" /> Gérer mes dépenses
+          </button>
+        </div>
+      </div>
+      {showFilterInput && (
+        <div className="dashboard-transaction-filter-row">
+          <input
+            type="text"
+            placeholder="Filtrer par nom ou description"
+            value={filterText}
+            onChange={(event) => onFilterChange(event.target.value)}
+          />
+        </div>
+      )}
+
+      <div className="dashboard-transactions-table-wrap">
+        <table className="dashboard-transactions-table">
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Description</th>
+              <th scope="col">Type</th>
+              <th scope="col">Compte</th>
+              <th scope="col">Montant</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan="5" className="dashboard-empty-row">Chargement des transactions...</td>
+              </tr>
+            )}
+            {!loading && transactions.length === 0 && (
+              <tr>
+                <td colSpan="5" className="dashboard-empty-row">Aucune transaction correspondante trouvée.</td>
+              </tr>
+            )}
+            {!loading && transactions.map((transaction) => {
+              const isCredit = transaction.nature === 'credit';
+              return (
+                <tr key={transaction.id}>
+                  <td>{formatDateForDisplay(transaction.date)}</td>
+                  <td>
+                    <div className="dashboard-transaction-description">
+                      <span className="dashboard-transaction-icon">
+                        <i className={transaction.iconClass} aria-hidden="true" />
+                      </span>
+                      <span>
+                        {transaction.nom}
+                        {transaction.description ? <small>{transaction.description}</small> : null}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`dashboard-transaction-type ${transaction.nature}`}>
+                      {transaction.typeLabel}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="dashboard-transaction-category">{transaction.compteNom}</span>
+                  </td>
+                  <td className={isCredit ? 'positive' : 'negative'}>
+                    {isCredit ? '+' : '-'}{euroFormatter.format(Math.abs(transaction.montant))}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}

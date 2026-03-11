@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import DashboardOverviewTab from './dashboard/DashboardOverviewTab.jsx';
@@ -26,6 +26,48 @@ const dashboardTabs = [
   { id: 'sharing', label: 'Partage' },
 ];
 
+function parseIsoDate(dateValue) {
+  if (!dateValue) return null;
+  if (dateValue instanceof Date && !Number.isNaN(dateValue.getTime())) {
+    return new Date(dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate());
+  }
+  if (typeof dateValue !== 'string') return null;
+  const normalizedDate = dateValue.includes('T') ? dateValue.slice(0, 10) : dateValue;
+  const [year, month, day] = normalizedDate.split('-').map((part) => Number(part));
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function countOccurrencesInRange(depense, rangeStart, rangeEnd) {
+  const start = parseIsoDate(depense.date_debut);
+  if (!start) return 0;
+
+  const now = new Date();
+  const limitDate = new Date(Math.min(rangeEnd.getTime(), now.getTime()));
+  const end = depense.date_fin ? parseIsoDate(depense.date_fin) : null;
+  const effectiveEnd = end && end < limitDate ? end : limitDate;
+
+  if (start > effectiveEnd) return 0;
+
+  const frequence = Number(depense.frequence_mois || 0);
+  if (frequence === 0) {
+    return start >= rangeStart && start <= effectiveEnd ? 1 : 0;
+  }
+
+  if (frequence < 1 || !Number.isInteger(frequence)) return 0;
+
+  let count = 0;
+  const current = new Date(start);
+  while (current <= effectiveEnd) {
+    if (current >= rangeStart) {
+      count += 1;
+    }
+    current.setMonth(current.getMonth() + frequence);
+  }
+
+  return count;
+}
+
 export default function DashboardPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -39,6 +81,9 @@ export default function DashboardPage() {
 
   const [comptes, setComptes] = useState([]);
   const [loadingComptes, setLoadingComptes] = useState(true);
+  const [depenses, setDepenses] = useState([]);
+  const [loadingDepenses, setLoadingDepenses] = useState(true);
+  const revenus = [];
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [newAccount, setNewAccount] = useState({
@@ -68,6 +113,32 @@ export default function DashboardPage() {
     { label: 'TMI 30%', value: 30 },
   ];
 
+  const fetchComptes = useCallback(async () => {
+    try {
+      const response = await fetch('/api/comptes', { credentials: 'include' });
+      if (!response.ok) return;
+      const data = await response.json();
+      setComptes(data.comptes || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des comptes:', error);
+    } finally {
+      setLoadingComptes(false);
+    }
+  }, []);
+
+  const fetchDepenses = useCallback(async () => {
+    try {
+      const response = await fetch('/api/depenses', { credentials: 'include' });
+      if (!response.ok) return;
+      const data = await response.json();
+      setDepenses(data.depenses || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des dépenses:', error);
+    } finally {
+      setLoadingDepenses(false);
+    }
+  }, []);
+
   const handleAddAccount = async (e) => {
     e.preventDefault();
     try {
@@ -78,8 +149,7 @@ export default function DashboardPage() {
         credentials: 'include',
       });
       if (response.ok) {
-        const data = await response.json();
-        setComptes([{ ...data.compte, solde: parseFloat(data.compte.solde_initial || 0) }, ...comptes]);
+        await fetchComptes();
         setShowAddModal(false);
         setNewAccount({
           nom_court: '',
@@ -101,24 +171,69 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    async function fetchComptes() {
-      try {
-        const response = await fetch('/api/comptes', { credentials: 'include' });
-        if (response.ok) {
-          const data = await response.json();
-          setComptes(data.comptes || []);
-        }
-      } catch (error) {
-        console.error('Erreur lors du chargement des comptes:', error);
-      } finally {
-        setLoadingComptes(false);
-      }
-    }
     fetchComptes();
-  }, []);
+    fetchDepenses();
+  }, [fetchComptes, fetchDepenses]);
+
+  const handleCreateDepense = async (payload) => {
+    const response = await fetch('/api/depenses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Erreur lors de la création de la dépense');
+    }
+
+    await Promise.all([fetchDepenses(), fetchComptes()]);
+  };
+
+  const handleUpdateDepense = async (depenseId, payload) => {
+    const response = await fetch(`/api/depenses/${depenseId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Erreur lors de la modification de la dépense');
+    }
+
+    await Promise.all([fetchDepenses(), fetchComptes()]);
+  };
+
+  const handleDeleteDepense = async (depenseId) => {
+    const response = await fetch(`/api/depenses/${depenseId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Erreur lors de la suppression de la dépense');
+    }
+
+    await Promise.all([fetchDepenses(), fetchComptes()]);
+  };
 
   const totalSolde = comptes.reduce((acc, compte) => acc + (compte.solde || 0), 0);
-  const formattedTotalSolde = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(totalSolde);
+  const euroFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+  const formattedTotalSolde = euroFormatter.format(totalSolde);
+  const now = new Date();
+  const monthLabel = new Intl.DateTimeFormat('fr-FR', { month: 'short' }).format(now);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  const depensesMois = depenses.reduce((sum, depense) => {
+    const occurrences = countOccurrencesInRange(depense, monthStart, monthEnd);
+    return sum + Number(depense.montant || 0) * occurrences;
+  }, 0);
+  const depensesMoisFormatees = euroFormatter.format(depensesMois);
 
   const summaryCards = [
     {
@@ -136,9 +251,9 @@ export default function DashboardPage() {
       icon: 'fa-solid fa-arrow-up',
     },
     {
-      title: 'Dépenses (Oct)',
-      amount: '1 900,00 €',
-      detail: '↘ -8.3% vs Sept',
+      title: `Dépenses (${monthLabel})`,
+      amount: depensesMoisFormatees,
+      detail: 'Basé sur vos dépenses actives',
       tone: 'negative',
       icon: 'fa-solid fa-arrow-down',
     },
@@ -170,7 +285,17 @@ export default function DashboardPage() {
     }
 
     if (activeTab === 'transactions') {
-      return <DashboardTransactionsTab />;
+      return (
+        <DashboardTransactionsTab
+          depenses={depenses}
+          revenus={revenus}
+          comptes={comptes}
+          loadingDepenses={loadingDepenses}
+          onCreateDepense={handleCreateDepense}
+          onUpdateDepense={handleUpdateDepense}
+          onDeleteDepense={handleDeleteDepense}
+        />
+      );
     }
 
     return <DashboardPlaceholderTab />;
