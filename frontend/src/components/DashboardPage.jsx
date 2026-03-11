@@ -99,7 +99,7 @@ export default function DashboardPage() {
       amount: '1 300,00 €',
       detail: '40.6% du revenu',
       tone: 'info',
-      icon: 'fa-solid fa-sparkles',
+      icon: 'fa-solid fa-star',
     },
   ];
 
@@ -241,29 +241,56 @@ export default function DashboardPage() {
         </section>
 
         {showAddModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div style={{ backgroundColor: '#fff', color: '#333', padding: '2rem', borderRadius: '8px', width: '100%', maxWidth: '400px' }}>
-              <h3 style={{ marginTop: 0 }}>Ajouter un compte</h3>
-              <form onSubmit={handleAddAccount} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label>Nom du compte</label>
-                  <input type="text" required value={newAccount.nom_court} onChange={e => setNewAccount({...newAccount, nom_court: e.target.value})} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+          <div className="dashboard-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dashboard-add-account-title">
+            <div className="dashboard-modal card">
+              <div className="card-header">
+                <h3 id="dashboard-add-account-title">Ajouter un compte</h3>
+              </div>
+              <form onSubmit={handleAddAccount} className="auth-form dashboard-modal-form">
+                <div className="field-row">
+                  <label htmlFor="account-name">Nom du compte</label>
+                  <input
+                    id="account-name"
+                    type="text"
+                    required
+                    value={newAccount.nom_court}
+                    onChange={(e) => setNewAccount({ ...newAccount, nom_court: e.target.value })}
+                  />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label>Description</label>
-                  <input type="text" value={newAccount.description} onChange={e => setNewAccount({...newAccount, description: e.target.value})} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <div className="field-row">
+                  <label htmlFor="account-description">Description</label>
+                  <input
+                    id="account-description"
+                    type="text"
+                    value={newAccount.description}
+                    onChange={(e) => setNewAccount({ ...newAccount, description: e.target.value })}
+                  />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label>Date de création</label>
-                  <input type="date" required value={newAccount.date_creation} onChange={e => setNewAccount({...newAccount, date_creation: e.target.value})} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <div className="field-row">
+                  <label htmlFor="account-created-at">Date de création</label>
+                  <input
+                    id="account-created-at"
+                    type="date"
+                    required
+                    value={newAccount.date_creation}
+                    onChange={(e) => setNewAccount({ ...newAccount, date_creation: e.target.value })}
+                  />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label>Solde initial</label>
-                  <input type="number" step="0.01" value={newAccount.solde_initial} onChange={e => setNewAccount({...newAccount, solde_initial: e.target.value})} style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }} />
+                <div className="field-row">
+                  <label htmlFor="account-initial-balance">Solde initial</label>
+                  <input
+                    id="account-initial-balance"
+                    type="number"
+                    step="0.01"
+                    value={newAccount.solde_initial}
+                    onChange={(e) => setNewAccount({ ...newAccount, solde_initial: e.target.value })}
+                  />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-                  <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '0.5rem 1rem', background: '#f8f9fa', border: '1px solid #ddd', color: '#333', borderRadius: '4px', cursor: 'pointer' }}>Annuler</button>
-                  <button type="submit" style={{ padding: '0.5rem 1rem', background: '#0d6efd', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Ajouter</button>
+                <div className="dashboard-modal-actions">
+                  <button type="button" className="btn ghost small" onClick={() => setShowAddModal(false)}>
+                    Annuler
+                  </button>
+                  <button type="submit" className="btn primary small">Ajouter</button>
                 </div>
               </form>
             </div>
