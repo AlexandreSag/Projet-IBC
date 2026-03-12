@@ -95,23 +95,20 @@ export default function DashboardPage() {
     taux_remuneration: 0,
     taux_imposition: 0,
   });
-  const [customTauxRemu, setCustomTauxRemu] = useState(false);
-  const [customTauxImpo, setCustomTauxImpo] = useState(false);
+  const [customTaux, setCustomTaux] = useState(false);
   const tauxRemuInputRef = useRef(null);
   const tauxImpoInputRef = useRef(null);
 
-  const presetsRemuneration = [
-    { label: 'Livret A', value: 1.7 },
-    { label: 'LDDS', value: 1.7 },
-    { label: 'LEP', value: 3.5 },
-    { label: 'PEL', value: 1.75 },
-  ];
-
-  const presetsImposition = [
-    { label: 'PFU', value: 30 },
-    { label: 'TMI 0%', value: 0 },
-    { label: 'TMI 11%', value: 11 },
-    { label: 'TMI 30%', value: 30 },
+  const presetsCompte = [
+    { label: 'Livret A', remuneration: 1.5, imposition: 0 },
+    { label: 'LDDS', remuneration: 1.5, imposition: 0 },
+    { label: 'LEP', remuneration: 2.5, imposition: 0 },
+    { label: 'Livret Jeune', remuneration: 1.5, imposition: 0 },
+    { label: 'CEL', remuneration: 1, imposition: 30 },
+    { label: 'PEL (2026)', remuneration: 2, imposition: 30 },
+    { label: 'CTO', remuneration: 5, imposition: 30 },
+    { label: 'Assurance-vie', remuneration: 2.6, imposition: 30 },
+    { label: 'Livret bancaire', remuneration: 0.75, imposition: 30 },
   ];
 
   const fetchComptes = useCallback(async () => {
@@ -160,8 +157,7 @@ export default function DashboardPage() {
           taux_remuneration: 0,
           taux_imposition: 0,
         });
-        setCustomTauxRemu(false);
-        setCustomTauxImpo(false);
+        setCustomTaux(false);
       } else {
         const err = await response.json();
         alert(err.error || 'Erreur lors de la création du compte');
@@ -184,12 +180,10 @@ export default function DashboardPage() {
       taux_remuneration: compte.taux_remuneration ?? 0,
       taux_imposition: compte.taux_imposition ?? 0,
     });
-    const taux = parseFloat(compte.taux_remuneration || 0);
-    const isPresetRemu = presetsRemuneration.some((p) => p.value === taux);
-    setCustomTauxRemu(taux > 0 && !isPresetRemu);
+    const remu = parseFloat(compte.taux_remuneration || 0);
     const impo = parseFloat(compte.taux_imposition || 0);
-    const isPresetImpo = presetsImposition.some((p) => p.value === impo);
-    setCustomTauxImpo(impo > 0 && !isPresetImpo);
+    const isPreset = presetsCompte.some((p) => p.remuneration === remu && p.imposition === impo);
+    setCustomTaux(!isPreset);
   };
 
   const handleUpdateAccount = async (e) => {
@@ -205,8 +199,7 @@ export default function DashboardPage() {
       if (response.ok) {
         await fetchComptes();
         setEditingAccount(null);
-        setCustomTauxRemu(false);
-        setCustomTauxImpo(false);
+        setCustomTaux(false);
       } else {
         const err = await response.json();
         alert(err.error || 'Erreur lors de la modification du compte');
@@ -473,87 +466,64 @@ export default function DashboardPage() {
                   />
                 </div>
                 <div className="field-row">
-                  <label>Taux de rémunération (%)</label>
+                  <label>Type de compte</label>
                   <div className="dashboard-preset-row">
-                    {presetsRemuneration.map((p) => (
+                    {presetsCompte.map((p) => (
                       <button
                         key={p.label}
                         type="button"
-                        className={`dashboard-preset-btn${!customTauxRemu && newAccount.taux_remuneration === p.value ? ' active' : ''}`}
+                        className={`dashboard-preset-btn${!customTaux && parseFloat(newAccount.taux_remuneration) === p.remuneration && parseFloat(newAccount.taux_imposition) === p.imposition ? ' active' : ''}`}
                         onClick={() => {
-                          setCustomTauxRemu(false);
-                          setNewAccount({ ...newAccount, taux_remuneration: p.value });
+                          setCustomTaux(false);
+                          setNewAccount({ ...newAccount, taux_remuneration: p.remuneration, taux_imposition: p.imposition });
                         }}
                       >
-                        {p.label} {p.value}%
+                        {p.label} ({p.remuneration}% / {p.imposition}%)
                       </button>
                     ))}
                     <button
                       type="button"
-                      className={`dashboard-preset-btn${customTauxRemu ? ' active' : ''}`}
+                      className={`dashboard-preset-btn${customTaux ? ' active' : ''}`}
                       onClick={() => {
-                        setCustomTauxRemu(true);
-                        setNewAccount({ ...newAccount, taux_remuneration: '' });
+                        setCustomTaux(true);
+                        setNewAccount({ ...newAccount, taux_remuneration: '', taux_imposition: '' });
                         setTimeout(() => tauxRemuInputRef.current?.focus(), 0);
                       }}
                     >
                       Personnalisé
                     </button>
                   </div>
-                  {customTauxRemu && (
-                    <input
-                      ref={tauxRemuInputRef}
-                      id="account-taux-remuneration"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Ex : 2.5"
-                      value={newAccount.taux_remuneration}
-                      onChange={(e) => setNewAccount({ ...newAccount, taux_remuneration: e.target.value })}
-                    />
-                  )}
                 </div>
-                <div className="field-row">
-                  <label>Taux d'imposition (%)</label>
-                  <div className="dashboard-preset-row">
-                    {presetsImposition.map((p) => (
-                      <button
-                        key={p.label}
-                        type="button"
-                        className={`dashboard-preset-btn${!customTauxImpo && parseFloat(newAccount.taux_imposition) === p.value ? ' active' : ''}`}
-                        onClick={() => {
-                          setCustomTauxImpo(false);
-                          setNewAccount({ ...newAccount, taux_imposition: p.value });
-                        }}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className={`dashboard-preset-btn${customTauxImpo ? ' active' : ''}`}
-                      onClick={() => {
-                        setCustomTauxImpo(true);
-                        setNewAccount({ ...newAccount, taux_imposition: '' });
-                        setTimeout(() => tauxImpoInputRef.current?.focus(), 0);
-                      }}
-                    >
-                      Personnalisé
-                    </button>
-                  </div>
-                  {customTauxImpo && (
-                    <input
-                      ref={tauxImpoInputRef}
-                      id="account-taux-imposition"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Ex : 12.8"
-                      value={newAccount.taux_imposition}
-                      onChange={(e) => setNewAccount({ ...newAccount, taux_imposition: e.target.value })}
-                    />
-                  )}
-                </div>
+                {customTaux && (
+                  <>
+                    <div className="field-row">
+                      <label htmlFor="account-taux-remuneration">Taux de rémunération (%)</label>
+                      <input
+                        ref={tauxRemuInputRef}
+                        id="account-taux-remuneration"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Ex : 2.5"
+                        value={newAccount.taux_remuneration}
+                        onChange={(e) => setNewAccount({ ...newAccount, taux_remuneration: e.target.value })}
+                      />
+                    </div>
+                    <div className="field-row">
+                      <label htmlFor="account-taux-imposition">Taux d'imposition (%)</label>
+                      <input
+                        ref={tauxImpoInputRef}
+                        id="account-taux-imposition"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Ex : 30"
+                        value={newAccount.taux_imposition}
+                        onChange={(e) => setNewAccount({ ...newAccount, taux_imposition: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
                 <div className="dashboard-modal-actions">
                   <button type="button" className="btn ghost small" onClick={() => setShowAddModal(false)}>
                     Annuler
@@ -612,89 +582,66 @@ export default function DashboardPage() {
                   />
                 </div>
                 <div className="field-row">
-                  <label>Taux de rémunération (%)</label>
+                  <label>Type de compte</label>
                   <div className="dashboard-preset-row">
-                    {presetsRemuneration.map((p) => (
+                    {presetsCompte.map((p) => (
                       <button
                         key={p.label}
                         type="button"
-                        className={`dashboard-preset-btn${!customTauxRemu && parseFloat(editingAccount.taux_remuneration) === p.value ? ' active' : ''}`}
+                        className={`dashboard-preset-btn${!customTaux && parseFloat(editingAccount.taux_remuneration) === p.remuneration && parseFloat(editingAccount.taux_imposition) === p.imposition ? ' active' : ''}`}
                         onClick={() => {
-                          setCustomTauxRemu(false);
-                          setEditingAccount({ ...editingAccount, taux_remuneration: p.value });
+                          setCustomTaux(false);
+                          setEditingAccount({ ...editingAccount, taux_remuneration: p.remuneration, taux_imposition: p.imposition });
                         }}
                       >
-                        {p.label} {p.value}%
+                        {p.label} ({p.remuneration}% / {p.imposition}%)
                       </button>
                     ))}
                     <button
                       type="button"
-                      className={`dashboard-preset-btn${customTauxRemu ? ' active' : ''}`}
+                      className={`dashboard-preset-btn${customTaux ? ' active' : ''}`}
                       onClick={() => {
-                        setCustomTauxRemu(true);
-                        setEditingAccount({ ...editingAccount, taux_remuneration: '' });
+                        setCustomTaux(true);
+                        setEditingAccount({ ...editingAccount, taux_remuneration: '', taux_imposition: '' });
                         setTimeout(() => tauxRemuInputRef.current?.focus(), 0);
                       }}
                     >
                       Personnalisé
                     </button>
                   </div>
-                  {customTauxRemu && (
-                    <input
-                      ref={tauxRemuInputRef}
-                      id="edit-account-taux-remuneration"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Ex : 2.5"
-                      value={editingAccount.taux_remuneration}
-                      onChange={(e) => setEditingAccount({ ...editingAccount, taux_remuneration: e.target.value })}
-                    />
-                  )}
                 </div>
-                <div className="field-row">
-                  <label>Taux d'imposition (%)</label>
-                  <div className="dashboard-preset-row">
-                    {presetsImposition.map((p) => (
-                      <button
-                        key={p.label}
-                        type="button"
-                        className={`dashboard-preset-btn${!customTauxImpo && parseFloat(editingAccount.taux_imposition) === p.value ? ' active' : ''}`}
-                        onClick={() => {
-                          setCustomTauxImpo(false);
-                          setEditingAccount({ ...editingAccount, taux_imposition: p.value });
-                        }}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className={`dashboard-preset-btn${customTauxImpo ? ' active' : ''}`}
-                      onClick={() => {
-                        setCustomTauxImpo(true);
-                        setEditingAccount({ ...editingAccount, taux_imposition: '' });
-                        setTimeout(() => tauxImpoInputRef.current?.focus(), 0);
-                      }}
-                    >
-                      Personnalisé
-                    </button>
-                  </div>
-                  {customTauxImpo && (
-                    <input
-                      ref={tauxImpoInputRef}
-                      id="edit-account-taux-imposition"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="Ex : 12.8"
-                      value={editingAccount.taux_imposition}
-                      onChange={(e) => setEditingAccount({ ...editingAccount, taux_imposition: e.target.value })}
-                    />
-                  )}
-                </div>
+                {customTaux && (
+                  <>
+                    <div className="field-row">
+                      <label htmlFor="edit-account-taux-remuneration">Taux de rémunération (%)</label>
+                      <input
+                        ref={tauxRemuInputRef}
+                        id="edit-account-taux-remuneration"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Ex : 2.5"
+                        value={editingAccount.taux_remuneration}
+                        onChange={(e) => setEditingAccount({ ...editingAccount, taux_remuneration: e.target.value })}
+                      />
+                    </div>
+                    <div className="field-row">
+                      <label htmlFor="edit-account-taux-imposition">Taux d'imposition (%)</label>
+                      <input
+                        ref={tauxImpoInputRef}
+                        id="edit-account-taux-imposition"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Ex : 30"
+                        value={editingAccount.taux_imposition}
+                        onChange={(e) => setEditingAccount({ ...editingAccount, taux_imposition: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
                 <div className="dashboard-modal-actions">
-                  <button type="button" className="btn ghost small" onClick={() => { setEditingAccount(null); setCustomTauxRemu(false); setCustomTauxImpo(false); }}>
+                  <button type="button" className="btn ghost small" onClick={() => { setEditingAccount(null); setCustomTaux(false); }}>
                     Annuler
                   </button>
                   <button type="submit" className="btn primary small">Enregistrer</button>
