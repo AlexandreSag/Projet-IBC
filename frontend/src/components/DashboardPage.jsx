@@ -85,6 +85,7 @@ export default function DashboardPage() {
   const [loadingDepenses, setLoadingDepenses] = useState(true);
   const revenus = [];
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingAccount, setEditingAccount] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [newAccount, setNewAccount] = useState({
     nom_court: '',
@@ -164,6 +165,69 @@ export default function DashboardPage() {
       } else {
         const err = await response.json();
         alert(err.error || 'Erreur lors de la création du compte');
+      }
+    } catch {
+      alert('Erreur réseau');
+    }
+  };
+
+  const handleEditAccount = (compte) => {
+    const dateVal = compte.date_creation
+      ? (typeof compte.date_creation === 'string' ? compte.date_creation.slice(0, 10) : new Date(compte.date_creation).toISOString().split('T')[0])
+      : new Date().toISOString().split('T')[0];
+    setEditingAccount({
+      id: compte.id,
+      nom_court: compte.nom_court || '',
+      description: compte.description || '',
+      date_creation: dateVal,
+      solde_initial: compte.solde_initial ?? 0,
+      taux_remuneration: compte.taux_remuneration ?? 0,
+      taux_imposition: compte.taux_imposition ?? 0,
+    });
+    const taux = parseFloat(compte.taux_remuneration || 0);
+    const isPresetRemu = presetsRemuneration.some((p) => p.value === taux);
+    setCustomTauxRemu(taux > 0 && !isPresetRemu);
+    const impo = parseFloat(compte.taux_imposition || 0);
+    const isPresetImpo = presetsImposition.some((p) => p.value === impo);
+    setCustomTauxImpo(impo > 0 && !isPresetImpo);
+  };
+
+  const handleUpdateAccount = async (e) => {
+    e.preventDefault();
+    if (!editingAccount) return;
+    try {
+      const response = await fetch(`/api/comptes/${editingAccount.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingAccount),
+        credentials: 'include',
+      });
+      if (response.ok) {
+        await fetchComptes();
+        setEditingAccount(null);
+        setCustomTauxRemu(false);
+        setCustomTauxImpo(false);
+      } else {
+        const err = await response.json();
+        alert(err.error || 'Erreur lors de la modification du compte');
+      }
+    } catch {
+      alert('Erreur réseau');
+    }
+  };
+
+  const handleDeleteAccount = async (compteId) => {
+    if (!window.confirm('Supprimer ce compte et toutes ses dépenses/revenus associés ?')) return;
+    try {
+      const response = await fetch(`/api/comptes/${compteId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (response.ok) {
+        await fetchComptes();
+      } else {
+        const err = await response.json();
+        alert(err.error || 'Erreur lors de la suppression du compte');
       }
     } catch {
       alert('Erreur réseau');
@@ -278,6 +342,8 @@ export default function DashboardPage() {
           loadingComptes={loadingComptes}
           comptes={comptes}
           onOpenAddModal={() => setShowAddModal(true)}
+          onEditAccount={handleEditAccount}
+          onDeleteAccount={handleDeleteAccount}
           monthlyData={monthlyData}
           chartMax={chartMax}
         />
@@ -493,6 +559,145 @@ export default function DashboardPage() {
                     Annuler
                   </button>
                   <button type="submit" className="btn primary small">Ajouter</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {editingAccount && (
+          <div className="dashboard-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dashboard-edit-account-title">
+            <div className="dashboard-modal card">
+              <div className="card-header">
+                <h3 id="dashboard-edit-account-title">Modifier le compte</h3>
+              </div>
+              <form onSubmit={handleUpdateAccount} className="auth-form dashboard-modal-form">
+                <div className="field-row">
+                  <label htmlFor="edit-account-name">Nom du compte</label>
+                  <input
+                    id="edit-account-name"
+                    type="text"
+                    required
+                    value={editingAccount.nom_court}
+                    onChange={(e) => setEditingAccount({ ...editingAccount, nom_court: e.target.value })}
+                  />
+                </div>
+                <div className="field-row">
+                  <label htmlFor="edit-account-description">Description</label>
+                  <input
+                    id="edit-account-description"
+                    type="text"
+                    value={editingAccount.description}
+                    onChange={(e) => setEditingAccount({ ...editingAccount, description: e.target.value })}
+                  />
+                </div>
+                <div className="field-row">
+                  <label htmlFor="edit-account-created-at">Date de création</label>
+                  <input
+                    id="edit-account-created-at"
+                    type="date"
+                    required
+                    value={editingAccount.date_creation}
+                    onChange={(e) => setEditingAccount({ ...editingAccount, date_creation: e.target.value })}
+                  />
+                </div>
+                <div className="field-row">
+                  <label htmlFor="edit-account-initial-balance">Solde initial</label>
+                  <input
+                    id="edit-account-initial-balance"
+                    type="number"
+                    step="0.01"
+                    value={editingAccount.solde_initial}
+                    onChange={(e) => setEditingAccount({ ...editingAccount, solde_initial: e.target.value })}
+                  />
+                </div>
+                <div className="field-row">
+                  <label>Taux de rémunération (%)</label>
+                  <div className="dashboard-preset-row">
+                    {presetsRemuneration.map((p) => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        className={`dashboard-preset-btn${!customTauxRemu && parseFloat(editingAccount.taux_remuneration) === p.value ? ' active' : ''}`}
+                        onClick={() => {
+                          setCustomTauxRemu(false);
+                          setEditingAccount({ ...editingAccount, taux_remuneration: p.value });
+                        }}
+                      >
+                        {p.label} {p.value}%
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`dashboard-preset-btn${customTauxRemu ? ' active' : ''}`}
+                      onClick={() => {
+                        setCustomTauxRemu(true);
+                        setEditingAccount({ ...editingAccount, taux_remuneration: '' });
+                        setTimeout(() => tauxRemuInputRef.current?.focus(), 0);
+                      }}
+                    >
+                      Personnalisé
+                    </button>
+                  </div>
+                  {customTauxRemu && (
+                    <input
+                      ref={tauxRemuInputRef}
+                      id="edit-account-taux-remuneration"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Ex : 2.5"
+                      value={editingAccount.taux_remuneration}
+                      onChange={(e) => setEditingAccount({ ...editingAccount, taux_remuneration: e.target.value })}
+                    />
+                  )}
+                </div>
+                <div className="field-row">
+                  <label>Taux d'imposition (%)</label>
+                  <div className="dashboard-preset-row">
+                    {presetsImposition.map((p) => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        className={`dashboard-preset-btn${!customTauxImpo && parseFloat(editingAccount.taux_imposition) === p.value ? ' active' : ''}`}
+                        onClick={() => {
+                          setCustomTauxImpo(false);
+                          setEditingAccount({ ...editingAccount, taux_imposition: p.value });
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`dashboard-preset-btn${customTauxImpo ? ' active' : ''}`}
+                      onClick={() => {
+                        setCustomTauxImpo(true);
+                        setEditingAccount({ ...editingAccount, taux_imposition: '' });
+                        setTimeout(() => tauxImpoInputRef.current?.focus(), 0);
+                      }}
+                    >
+                      Personnalisé
+                    </button>
+                  </div>
+                  {customTauxImpo && (
+                    <input
+                      ref={tauxImpoInputRef}
+                      id="edit-account-taux-imposition"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Ex : 12.8"
+                      value={editingAccount.taux_imposition}
+                      onChange={(e) => setEditingAccount({ ...editingAccount, taux_imposition: e.target.value })}
+                    />
+                  )}
+                </div>
+                <div className="dashboard-modal-actions">
+                  <button type="button" className="btn ghost small" onClick={() => { setEditingAccount(null); setCustomTauxRemu(false); setCustomTauxImpo(false); }}>
+                    Annuler
+                  </button>
+                  <button type="submit" className="btn primary small">Enregistrer</button>
                 </div>
               </form>
             </div>

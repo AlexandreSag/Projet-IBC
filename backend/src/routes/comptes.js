@@ -51,6 +51,7 @@ async function calculerSolde(db, compte, today = new Date()) {
     const dateCreation = new Date(compte.date_creation);
     let nbMois = 0;
     let cursor = new Date(dateCreation);
+    cursor.setMonth(cursor.getMonth() + 1);
     while (cursor <= today) {
       nbMois++;
       cursor.setMonth(cursor.getMonth() + 1);

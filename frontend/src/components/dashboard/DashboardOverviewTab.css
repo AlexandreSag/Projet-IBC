@@ -44,6 +44,52 @@
   font-size: 1.3rem;
 }
 
+.dashboard-account-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dashboard-account-right > strong {
+  font-size: 1.3rem;
+  white-space: nowrap;
+}
+
+.dashboard-account-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.dashboard-account-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--couleur-bordure);
+  background: var(--couleur-surface);
+  color: var(--couleur-texte-3);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  box-shadow: none;
+}
+
+.dashboard-account-action-btn:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--couleur-primaire);
+  color: var(--couleur-primaire-texte);
+  background: rgba(0, 153, 196, 0.06);
+}
+
+.dashboard-account-action-btn.delete:hover {
+  border-color: #f43f5e;
+  color: #e11d48;
+  background: rgba(244, 63, 94, 0.06);
+}
+
 .dashboard-chart-placeholder {
   border: 1px dashed var(--couleur-bordure-forte);
   background: linear-gradient(180deg, #f8fdfd 0%, #f4fbfd 100%);

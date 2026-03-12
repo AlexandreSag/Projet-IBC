@@ -4,6 +4,8 @@ export default function DashboardOverviewTab({
   loadingComptes,
   comptes,
   onOpenAddModal,
+  onEditAccount,
+  onDeleteAccount,
   monthlyData,
   chartMax,
 }) {
@@ -36,7 +38,27 @@ export default function DashboardOverviewTab({
                     <p>{compte.description || 'Compte bancaire'}</p>
                   </div>
                 </div>
-                <strong>{euroFormatter.format(compte.solde)}</strong>
+                <div className="dashboard-account-right">
+                  <strong>{euroFormatter.format(compte.solde)}</strong>
+                  <div className="dashboard-account-actions">
+                    <button
+                      type="button"
+                      className="dashboard-account-action-btn"
+                      title="Modifier"
+                      onClick={() => onEditAccount(compte)}
+                    >
+                      <i className="fa-solid fa-pen" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="dashboard-account-action-btn delete"
+                      title="Supprimer"
+                      onClick={() => onDeleteAccount(compte.id)}
+                    >
+                      <i className="fa-solid fa-trash" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
               </article>
             ))
           ) : (
