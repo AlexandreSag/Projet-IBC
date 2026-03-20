@@ -22,14 +22,17 @@ const categoriesPlaceholder = [
 
 export default function DashboardTransactionsTab({
   depenses,
+  revenus,
   comptes,
-  loadingDepenses,
+  loadingTransactions,
   onCreateDepense,
   onUpdateDepense,
   onDeleteDepense,
-  revenus = [],
+  onCreateRevenu,
+  onUpdateRevenu,
+  onDeleteRevenu,
 }) {
-  const [showManagerModal, setShowManagerModal] = useState(false);
+  const [activeManagerModal, setActiveManagerModal] = useState(null);
   const [showFilterInput, setShowFilterInput] = useState(false);
   const [filterText, setFilterText] = useState('');
 
@@ -75,8 +78,9 @@ export default function DashboardTransactionsTab({
     });
   }, [recentTransactions, filterText]);
 
-  const openManagerModal = () => setShowManagerModal(true);
-  const closeManagerModal = () => setShowManagerModal(false);
+  const openDepenseManagerModal = () => setActiveManagerModal('depense');
+  const openRevenuManagerModal = () => setActiveManagerModal('revenu');
+  const closeManagerModal = () => setActiveManagerModal(null);
 
   return (
     <>
@@ -84,23 +88,38 @@ export default function DashboardTransactionsTab({
 
       <DashboardTransactionsList
         transactions={filteredTransactions}
-        loading={loadingDepenses}
+        loading={loadingTransactions}
         filterText={filterText}
         onFilterChange={setFilterText}
-        onOpenManagerModal={openManagerModal}
+        onOpenDepenseManagerModal={openDepenseManagerModal}
+        onOpenRevenuManagerModal={openRevenuManagerModal}
         euroFormatter={euroFormatter}
         showFilterInput={showFilterInput}
         setShowFilterInput={setShowFilterInput}
       />
 
-      {showManagerModal && (
+      {activeManagerModal === 'depense' && (
         <DashboardTransactionManagerModal
           comptes={comptes}
-          depenses={depenses}
+          items={depenses}
+          itemType="depense"
           onClose={closeManagerModal}
-          onCreateDepense={onCreateDepense}
-          onUpdateDepense={onUpdateDepense}
-          onDeleteDepense={onDeleteDepense}
+          onCreateItem={onCreateDepense}
+          onUpdateItem={onUpdateDepense}
+          onDeleteItem={onDeleteDepense}
+          euroFormatter={euroFormatter}
+        />
+      )}
+
+      {activeManagerModal === 'revenu' && (
+        <DashboardTransactionManagerModal
+          comptes={comptes}
+          items={revenus}
+          itemType="revenu"
+          onClose={closeManagerModal}
+          onCreateItem={onCreateRevenu}
+          onUpdateItem={onUpdateRevenu}
+          onDeleteItem={onDeleteRevenu}
           euroFormatter={euroFormatter}
         />
       )}

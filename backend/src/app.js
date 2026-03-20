@@ -5,6 +5,7 @@ const { getPool } = require('./config/database');
 const authRoutes = require('./routes/auth');
 const comptesRoutes = require('./routes/comptes');
 const depensesRoutes = require('./routes/depenses');
+const revenusRoutes = require('./routes/revenus');
 
 function createApp() {
   const app = express();
@@ -32,6 +33,7 @@ function createApp() {
   app.use('/api', authRoutes);
   app.use('/api/comptes', comptesRoutes);
   app.use('/api/depenses', depensesRoutes);
+  app.use('/api/revenus', revenusRoutes);
 
   app.use((req, res) => {
     res.status(404).json({ error: 'Route non trouvée' });

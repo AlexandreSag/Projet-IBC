@@ -3,16 +3,17 @@ import { getTodayIsoDate, formatDateForInput, formatDateForDisplay } from '../..
 
 export default function DashboardTransactionManagerModal({
   comptes,
-  depenses,
+  items,
+  itemType,
   onClose,
-  onCreateDepense,
-  onUpdateDepense,
-  onDeleteDepense,
+  onCreateItem,
+  onUpdateItem,
+  onDeleteItem,
   euroFormatter,
 }) {
   const defaultCompteId = comptes[0] ? String(comptes[0].id) : '';
   const [saving, setSaving] = useState(false);
-  const [editingDepenseId, setEditingDepenseId] = useState(null);
+  const [editingItemId, setEditingItemId] = useState(null);
   const [formValues, setFormValues] = useState({
     nom: '',
     description: '',
@@ -31,8 +32,16 @@ export default function DashboardTransactionManagerModal({
     }
   }, [defaultCompteId, formValues.compte_id]);
 
+  const itemLabel = itemType === 'revenu' ? 'revenu' : 'dépense';
+  const itemLabelPlural = itemType === 'revenu' ? 'revenus' : 'dépenses';
+  const itemLabelCapitalized = itemType === 'revenu' ? 'Revenu' : 'Dépense';
+  const itemIndefiniteArticle = itemType === 'revenu' ? 'un revenu' : 'une dépense';
+  const createButtonLabel = itemType === 'revenu' ? 'Créer un revenu' : 'Créer une dépense';
+  const amountCellClass = itemType === 'revenu' ? 'positive' : 'negative';
+  const amountSign = itemType === 'revenu' ? '+' : '-';
+
   const resetForm = () => {
-    setEditingDepenseId(null);
+    setEditingItemId(null);
     setFormValues({
       nom: '',
       description: '',
@@ -74,29 +83,29 @@ export default function DashboardTransactionManagerModal({
     });
   };
 
-  const handleEdit = (depense) => {
-    setEditingDepenseId(depense.id);
+  const handleEdit = (item) => {
+    setEditingItemId(item.id);
     setFormValues({
-      nom: depense.nom || depense.nom_court || '',
-      description: depense.description || '',
-      compte_id: String(depense.compte_id || ''),
-      duree_type: depense.duree_type || 'ponctuelle',
+      nom: item.nom || item.nom_court || '',
+      description: item.description || '',
+      compte_id: String(item.compte_id || ''),
+      duree_type: item.duree_type || 'ponctuelle',
       frequence_mois:
-        depense.duree_type === 'tous_les_n_mois' ? String(depense.frequence_mois || '') : '',
-      montant: String(depense.montant || ''),
-      date: formatDateForInput(depense.date_debut),
-      date_debut: formatDateForInput(depense.date_debut),
-      date_fin: formatDateForInput(depense.date_fin),
+        item.duree_type === 'tous_les_n_mois' ? String(item.frequence_mois || '') : '',
+      montant: String(item.montant || ''),
+      date: formatDateForInput(item.date_debut),
+      date_debut: formatDateForInput(item.date_debut),
+      date_fin: formatDateForInput(item.date_fin),
     });
   };
 
-  const handleDelete = async (depenseId) => {
-    const shouldDelete = window.confirm('Supprimer cette dépense ?');
+  const handleDelete = async (itemId) => {
+    const shouldDelete = window.confirm(`Supprimer ce ${itemLabel} ?`);
     if (!shouldDelete) return;
 
     try {
-      await onDeleteDepense(depenseId);
-      if (editingDepenseId === depenseId) {
+      await onDeleteItem(itemId);
+      if (editingItemId === itemId) {
         resetForm();
       }
     } catch (error) {
@@ -153,14 +162,14 @@ export default function DashboardTransactionManagerModal({
 
     try {
       setSaving(true);
-      if (editingDepenseId) {
-        await onUpdateDepense(editingDepenseId, payload);
+      if (editingItemId) {
+        await onUpdateItem(editingItemId, payload);
       } else {
-        await onCreateDepense(payload);
+        await onCreateItem(payload);
       }
       resetForm();
     } catch (error) {
-      alert(error.message || 'Erreur lors de l\'enregistrement de la dépense');
+      alert(error.message || `Erreur lors de l'enregistrement du ${itemLabel}`);
     } finally {
       setSaving(false);
     }
@@ -171,8 +180,8 @@ export default function DashboardTransactionManagerModal({
       <div className="dashboard-modal card dashboard-transaction-manager-modal">
         <div className="card-header dashboard-transaction-modal-header">
           <div>
-            <h3 id="dashboard-manage-transactions-title">Gérer mes transactions</h3>
-            <p className="muted">Créer, modifier ou supprimer une dépense</p>
+            <h3 id="dashboard-manage-transactions-title">Gérer mes {itemLabelPlural}</h3>
+            <p className="muted">Créer, modifier ou supprimer {itemIndefiniteArticle}</p>
           </div>
           <button
             type="button"
@@ -187,9 +196,9 @@ export default function DashboardTransactionManagerModal({
         <div className="dashboard-transaction-manager-grid">
           <form onSubmit={handleSubmit} className="auth-form dashboard-modal-form dashboard-transaction-form">
             <div className="field-row">
-              <label htmlFor="depense-nom">Nom</label>
+              <label htmlFor={`${itemType}-nom`}>Nom</label>
               <input
-                id="depense-nom"
+                id={`${itemType}-nom`}
                 name="nom"
                 type="text"
                 required
@@ -199,9 +208,9 @@ export default function DashboardTransactionManagerModal({
             </div>
 
             <div className="field-row">
-              <label htmlFor="depense-description">Description</label>
+              <label htmlFor={`${itemType}-description`}>Description</label>
               <input
-                id="depense-description"
+                id={`${itemType}-description`}
                 name="description"
                 type="text"
                 value={formValues.description}
@@ -210,9 +219,9 @@ export default function DashboardTransactionManagerModal({
             </div>
 
             <div className="field-row">
-              <label htmlFor="depense-compte">Compte</label>
+              <label htmlFor={`${itemType}-compte`}>Compte</label>
               <select
-                id="depense-compte"
+                id={`${itemType}-compte`}
                 name="compte_id"
                 required
                 value={formValues.compte_id}
@@ -226,9 +235,9 @@ export default function DashboardTransactionManagerModal({
             </div>
 
             <div className="field-row">
-              <label htmlFor="depense-duree">Durée</label>
+              <label htmlFor={`${itemType}-duree`}>Durée</label>
               <select
-                id="depense-duree"
+                id={`${itemType}-duree`}
                 name="duree_type"
                 value={formValues.duree_type}
                 onChange={handleFormChange}
@@ -240,9 +249,9 @@ export default function DashboardTransactionManagerModal({
 
             {formValues.duree_type === 'tous_les_n_mois' && (
               <div className="field-row">
-                <label htmlFor="depense-frequence">Fréquence (mois)</label>
+                <label htmlFor={`${itemType}-frequence`}>Fréquence (mois)</label>
                 <input
-                  id="depense-frequence"
+                  id={`${itemType}-frequence`}
                   name="frequence_mois"
                   type="number"
                   min="1"
@@ -255,9 +264,9 @@ export default function DashboardTransactionManagerModal({
             )}
 
             <div className="field-row">
-              <label htmlFor="depense-montant">Montant</label>
+              <label htmlFor={`${itemType}-montant`}>Montant</label>
               <input
-                id="depense-montant"
+                id={`${itemType}-montant`}
                 name="montant"
                 type="number"
                 step="0.01"
@@ -270,9 +279,9 @@ export default function DashboardTransactionManagerModal({
 
             {formValues.duree_type === 'ponctuelle' ? (
               <div className="field-row">
-                <label htmlFor="depense-date">Date</label>
+                <label htmlFor={`${itemType}-date`}>Date</label>
                 <input
-                  id="depense-date"
+                  id={`${itemType}-date`}
                   name="date"
                   type="date"
                   required
@@ -283,9 +292,9 @@ export default function DashboardTransactionManagerModal({
             ) : (
               <>
                 <div className="field-row">
-                  <label htmlFor="depense-date-debut">Date de début</label>
+                  <label htmlFor={`${itemType}-date-debut`}>Date de début</label>
                   <input
-                    id="depense-date-debut"
+                    id={`${itemType}-date-debut`}
                     name="date_debut"
                     type="date"
                     required
@@ -295,9 +304,9 @@ export default function DashboardTransactionManagerModal({
                 </div>
 
                 <div className="field-row">
-                  <label htmlFor="depense-date-fin">Date de fin</label>
+                  <label htmlFor={`${itemType}-date-fin`}>Date de fin</label>
                   <input
-                    id="depense-date-fin"
+                    id={`${itemType}-date-fin`}
                     name="date_fin"
                     type="date"
                     value={formValues.date_fin}
@@ -308,13 +317,13 @@ export default function DashboardTransactionManagerModal({
             )}
 
             <div className="dashboard-modal-actions">
-              {editingDepenseId && (
+              {editingItemId && (
                 <button type="button" className="btn ghost small" onClick={resetForm}>
                   Annuler la modification
                 </button>
               )}
               <button type="submit" className="btn primary small" disabled={saving || comptes.length === 0}>
-                {editingDepenseId ? 'Mettre à jour' : 'Créer la dépense'}
+                {editingItemId ? 'Mettre à jour' : createButtonLabel}
               </button>
             </div>
           </form>
@@ -323,7 +332,7 @@ export default function DashboardTransactionManagerModal({
             <table className="dashboard-transactions-table dashboard-transaction-manager-table">
               <thead>
                 <tr>
-                  <th scope="col">Dépense</th>
+                  <th scope="col">{itemLabelCapitalized}</th>
                   <th scope="col">Date</th>
                   <th scope="col">Compte</th>
                   <th scope="col">Montant</th>
@@ -331,24 +340,26 @@ export default function DashboardTransactionManagerModal({
                 </tr>
               </thead>
               <tbody>
-                {depenses.length === 0 && (
+                {items.length === 0 && (
                   <tr>
-                    <td colSpan="5" className="dashboard-empty-row">Aucune dépense à gérer.</td>
+                    <td colSpan="5" className="dashboard-empty-row">Aucun {itemLabel} à gérer.</td>
                   </tr>
                 )}
-                {depenses.map((depense) => (
-                  <tr key={depense.id}>
-                    <td>{depense.nom || depense.nom_court}</td>
-                    <td>{formatDateForDisplay(depense.date_debut)}</td>
-                    <td>{depense.compte_nom_court || '-'}</td>
-                    <td className="negative">-{euroFormatter.format(Math.abs(Number(depense.montant || 0)))}</td>
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.nom || item.nom_court}</td>
+                    <td>{formatDateForDisplay(item.date_debut)}</td>
+                    <td>{item.compte_nom_court || '-'}</td>
+                    <td className={amountCellClass}>
+                      {amountSign}{euroFormatter.format(Math.abs(Number(item.montant || 0)))}
+                    </td>
                     <td>
                       <div className="dashboard-transaction-inline-actions">
                         <button
                           type="button"
                           className="btn ghost small dashboard-transaction-icon-btn"
-                          onClick={() => handleEdit(depense)}
-                          aria-label="Modifier la dépense"
+                          onClick={() => handleEdit(item)}
+                          aria-label={`Modifier le ${itemLabel}`}
                           title="Modifier"
                         >
                           <i className="fa-solid fa-pen" aria-hidden="true" />
@@ -356,8 +367,8 @@ export default function DashboardTransactionManagerModal({
                         <button
                           type="button"
                           className="btn ghost small dashboard-transaction-icon-btn dashboard-transaction-delete-btn"
-                          onClick={() => handleDelete(depense.id)}
-                          aria-label="Supprimer la dépense"
+                          onClick={() => handleDelete(item.id)}
+                          aria-label={`Supprimer le ${itemLabel}`}
                           title="Supprimer"
                         >
                           <i className="fa-solid fa-trash-can" aria-hidden="true" />

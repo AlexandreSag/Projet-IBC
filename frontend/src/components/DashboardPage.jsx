@@ -83,7 +83,8 @@ export default function DashboardPage() {
   const [loadingComptes, setLoadingComptes] = useState(true);
   const [depenses, setDepenses] = useState([]);
   const [loadingDepenses, setLoadingDepenses] = useState(true);
-  const revenus = [];
+  const [revenus, setRevenus] = useState([]);
+  const [loadingRevenus, setLoadingRevenus] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -134,6 +135,19 @@ export default function DashboardPage() {
       console.error('Erreur lors du chargement des dépenses:', error);
     } finally {
       setLoadingDepenses(false);
+    }
+  }, []);
+
+  const fetchRevenus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/revenus', { credentials: 'include' });
+      if (!response.ok) return;
+      const data = await response.json();
+      setRevenus(data.revenus || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des revenus:', error);
+    } finally {
+      setLoadingRevenus(false);
     }
   }, []);
 
@@ -230,7 +244,8 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchComptes();
     fetchDepenses();
-  }, [fetchComptes, fetchDepenses]);
+    fetchRevenus();
+  }, [fetchComptes, fetchDepenses, fetchRevenus]);
 
   const handleCreateDepense = async (payload) => {
     const response = await fetch('/api/depenses', {
@@ -278,6 +293,52 @@ export default function DashboardPage() {
     await Promise.all([fetchDepenses(), fetchComptes()]);
   };
 
+  const handleCreateRevenu = async (payload) => {
+    const response = await fetch('/api/revenus', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Erreur lors de la création du revenu');
+    }
+
+    await Promise.all([fetchRevenus(), fetchComptes()]);
+  };
+
+  const handleUpdateRevenu = async (revenuId, payload) => {
+    const response = await fetch(`/api/revenus/${revenuId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Erreur lors de la modification du revenu');
+    }
+
+    await Promise.all([fetchRevenus(), fetchComptes()]);
+  };
+
+  const handleDeleteRevenu = async (revenuId) => {
+    const response = await fetch(`/api/revenus/${revenuId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Erreur lors de la suppression du revenu');
+    }
+
+    await Promise.all([fetchRevenus(), fetchComptes()]);
+  };
+
   const totalSolde = comptes.reduce((acc, compte) => acc + (compte.solde || 0), 0);
   const euroFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
   const formattedTotalSolde = euroFormatter.format(totalSolde);
@@ -290,7 +351,13 @@ export default function DashboardPage() {
     const occurrences = countOccurrencesInRange(depense, monthStart, monthEnd);
     return sum + Number(depense.montant || 0) * occurrences;
   }, 0);
+  const revenusMois = revenus.reduce((sum, revenu) => {
+    const occurrences = countOccurrencesInRange(revenu, monthStart, monthEnd);
+    return sum + Number(revenu.montant || 0) * occurrences;
+  }, 0);
+  const revenusMoisFormates = euroFormatter.format(revenusMois);
   const depensesMoisFormatees = euroFormatter.format(depensesMois);
+  const loadingTransactions = loadingDepenses || loadingRevenus;
 
   const summaryCards = [
     {
@@ -301,9 +368,9 @@ export default function DashboardPage() {
       icon: 'fa-solid fa-dollar-sign',
     },
     {
-      title: 'Revenus (Oct)',
-      amount: '3 200,00 €',
-      detail: 'Salaire + bonus',
+      title: `Revenus (${monthLabel})`,
+      amount: revenusMoisFormates,
+      detail: 'Basé sur vos revenus actifs',
       tone: 'positive',
       icon: 'fa-solid fa-arrow-up',
     },
@@ -349,10 +416,13 @@ export default function DashboardPage() {
           depenses={depenses}
           revenus={revenus}
           comptes={comptes}
-          loadingDepenses={loadingDepenses}
+          loadingTransactions={loadingTransactions}
           onCreateDepense={handleCreateDepense}
           onUpdateDepense={handleUpdateDepense}
           onDeleteDepense={handleDeleteDepense}
+          onCreateRevenu={handleCreateRevenu}
+          onUpdateRevenu={handleUpdateRevenu}
+          onDeleteRevenu={handleDeleteRevenu}
         />
       );
     }

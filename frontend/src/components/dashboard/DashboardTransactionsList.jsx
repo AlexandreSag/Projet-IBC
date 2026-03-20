@@ -5,10 +5,11 @@ export default function DashboardTransactionsList({
   loading,
   filterText,
   onFilterChange,
-  onOpenManagerModal,
+  onOpenDepenseManagerModal,
+  onOpenRevenuManagerModal,
   euroFormatter,
   showFilterInput,
-  setShowFilterInput
+  setShowFilterInput,
 }) {
   return (
     <section className="dashboard-panel">
@@ -25,8 +26,11 @@ export default function DashboardTransactionsList({
           >
             <i className="fa-solid fa-filter" aria-hidden="true" /> Filtrer
           </button>
-          <button type="button" className="btn primary small" onClick={onOpenManagerModal}>
-            <i className="fa-solid fa-gear" aria-hidden="true" /> Gérer mes dépenses
+          <button type="button" className="btn primary small" onClick={onOpenDepenseManagerModal}>
+            <i className="fa-solid fa-wallet" aria-hidden="true" /> Gérer mes dépenses
+          </button>
+          <button type="button" className="btn primary small" onClick={onOpenRevenuManagerModal}>
+            <i className="fa-solid fa-sack-dollar" aria-hidden="true" /> Gérer mes revenus
           </button>
         </div>
       </div>
