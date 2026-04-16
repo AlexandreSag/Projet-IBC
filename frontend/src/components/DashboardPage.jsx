@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
 import DashboardOverviewTab from './dashboard/DashboardOverviewTab.jsx';
 import DashboardTransactionsTab from './dashboard/DashboardTransactionsTab.jsx';
 import DashboardPlaceholderTab from './dashboard/DashboardPlaceholderTab.jsx';
+import DashboardTopbar from './dashboard/DashboardTopbar.jsx';
 import './dashboard/DashboardPage.css';
 
 const monthlyData = [
@@ -69,16 +68,6 @@ function countOccurrencesInRange(depense, rangeStart, rangeEnd) {
 }
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const userLabel = user?.prenom || user?.nom || user?.email || 'Utilisateur';
-  const userInitials = userLabel
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((chunk) => chunk[0]?.toUpperCase() || '')
-    .join('');
-
   const [comptes, setComptes] = useState([]);
   const [loadingComptes, setLoadingComptes] = useState(true);
   const [depenses, setDepenses] = useState([]);
@@ -390,11 +379,6 @@ export default function DashboardPage() {
     },
   ];
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login', { replace: true });
-  };
-
   const renderTabContent = () => {
     if (activeTab === 'overview') {
       return (
@@ -432,31 +416,7 @@ export default function DashboardPage() {
 
   return (
     <div className="dashboard-layout">
-      <header className="dashboard-topbar">
-        <div className="dashboard-brand">
-          <div className="brand-icon">
-            <i className="fa-solid fa-wallet" aria-hidden="true" />
-          </div>
-          <div className="dashboard-brand-copy">
-            <span className="brand-name">Budgie</span>
-            <p>Tableau de bord financier</p>
-          </div>
-        </div>
-        <div className="dashboard-top-actions">
-          <button type="button" className="btn primary dashboard-premium-btn">
-            Passer à Premium
-          </button>
-          <button type="button" className="dashboard-icon-btn" aria-label="Notifications">
-            <i className="fa-regular fa-bell" aria-hidden="true" />
-          </button>
-          <button type="button" className="dashboard-icon-btn" aria-label="Paramètres">
-            <i className="fa-solid fa-gear" aria-hidden="true" />
-          </button>
-          <button type="button" className="dashboard-avatar-btn" onClick={handleLogout} title="Se déconnecter">
-            {userInitials || 'JD'}
-          </button>
-        </div>
-      </header>
+      <DashboardTopbar subtitle="Tableau de bord financier" activeAction="dashboard" />
 
       <main className="dashboard-page">
         <section className="dashboard-metrics">

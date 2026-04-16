@@ -10,6 +10,7 @@ import AuthForm from './components/AuthForm.jsx';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
 import DashboardPage from './components/DashboardPage.jsx';
+import SettingsPage from './components/SettingsPage.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 
 const features = [
@@ -172,10 +173,11 @@ function AppShell() {
   const location = useLocation();
   const isAuthRoute = location.pathname === '/login' || location.pathname === '/register';
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
+  const isSettingsRoute = location.pathname.startsWith('/settings');
 
   return (
     <>
-      {!isAuthRoute && !isDashboardRoute && <Header />}
+      {!isAuthRoute && !isDashboardRoute && !isSettingsRoute && <Header />}
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<AuthPage mode="login" />} />
@@ -185,6 +187,14 @@ function AppShell() {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
             </ProtectedRoute>
           }
         />

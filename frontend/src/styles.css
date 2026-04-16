@@ -113,11 +113,66 @@ a {
   gap: 0.5rem;
   justify-content: flex-end;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .nav-actions button.btn {
   font-size: 0.95rem;
   padding: 0.65rem 1rem;
+}
+
+.nav-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.35rem 0.45rem 0.35rem 0.35rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.nav-user-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--couleur-primaire-claire), var(--couleur-primaire));
+  color: var(--couleur-surface);
+  font-size: 0.95rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.nav-user-name {
+  max-width: 140px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--couleur-texte);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-user-logout {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(0, 153, 196, 0.18);
+  border-radius: 999px;
+  background: rgba(0, 153, 196, 0.08);
+  color: var(--couleur-primaire-texte);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+
+.nav-user-logout:hover {
+  background: rgba(0, 153, 196, 0.16);
+  color: var(--couleur-primaire);
+  transform: translateY(-1px);
 }
 
 .landing main,
@@ -538,6 +593,10 @@ button:disabled {
   .nav-actions {
     width: 100%;
     justify-content: center;
+  }
+
+  .nav-user-name {
+    max-width: 110px;
   }
 
   .hero-section {

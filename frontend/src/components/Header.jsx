@@ -20,6 +20,12 @@ export default function Header() {
   };
 
   const userLabel = user?.prenom || user?.nom || user?.email;
+  const userInitials = (user?.prenom || user?.nom || user?.email || 'U')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((chunk) => chunk[0]?.toUpperCase() || '')
+    .join('');
 
   return (
     <header className={`site-header ${scrolled ? 'scrolled' : ''}`}>
@@ -45,9 +51,21 @@ export default function Header() {
             <Link to="/dashboard" className="btn ghost small">
               Tableau de bord
             </Link>
-            <button type="button" className="btn primary small" onClick={handleLogout}>
-              Déconnexion {userLabel ? `(${userLabel})` : ''}
-            </button>
+            <div className="nav-user" aria-label={userLabel ? `Profil de ${userLabel}` : 'Profil utilisateur'}>
+              <div className="nav-user-avatar" aria-hidden="true">
+                {userInitials}
+              </div>
+              {userLabel && <span className="nav-user-name">{userLabel}</span>}
+              <button
+                type="button"
+                className="nav-user-logout"
+                onClick={handleLogout}
+                aria-label="Se déconnecter"
+                title="Se déconnecter"
+              >
+                <i className="fa-solid fa-right-from-bracket" aria-hidden="true" />
+              </button>
+            </div>
           </>
         )}
       </div>

@@ -118,7 +118,7 @@ router.post('/login', async (req, res, next) => {
     const token = issueJwt(user);
     res.cookie(JWT_COOKIE_NAME, token, getCookieOptions());
 
-    const { mot_de_passe: ignored, ...safeUser } = user;
+    const { mot_de_passe: _ignored, ...safeUser } = user;
     return res.json({ message: 'Connexion réussie.', utilisateur: safeUser, token });
   } catch (error) {
     return next(error);
@@ -138,6 +138,94 @@ router.get('/me', async (req, res, next) => {
     }
 
     return res.json({ utilisateur: rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.put('/me', async (req, res, next) => {
+  const { nom = null, prenom = null, email } = req.body || {};
+
+  if (!email || !email.trim()) {
+    return res.status(400).json({ error: 'L’email est requis.' });
+  }
+
+  try {
+    const db = await getPool();
+    const normalizedEmail = email.trim();
+    const normalizedNom = typeof nom === 'string' ? nom.trim() || null : null;
+    const normalizedPrenom = typeof prenom === 'string' ? prenom.trim() || null : null;
+
+    const [existing] = await db.execute('SELECT id FROM utilisateur WHERE email = ? AND id <> ?', [normalizedEmail, req.auth.sub]);
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'Un compte utilise déjà cet email.' });
+    }
+
+    await db.execute('UPDATE utilisateur SET nom = ?, prenom = ?, email = ? WHERE id = ?', [
+      normalizedNom,
+      normalizedPrenom,
+      normalizedEmail,
+      req.auth.sub,
+    ]);
+
+    const [rows] = await db.execute('SELECT id, nom, prenom, email FROM utilisateur WHERE id = ?', [req.auth.sub]);
+    if (rows.length === 0) {
+      clearAuthCookie(res);
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    const updatedUser = rows[0];
+    const token = issueJwt(updatedUser);
+    res.cookie(JWT_COOKIE_NAME, token, getCookieOptions());
+
+    return res.json({ message: 'Profil mis à jour.', utilisateur: updatedUser, token });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.put('/me/password', async (req, res, next) => {
+  const {
+    mot_de_passe_actuel: motDePasseActuel,
+    nouveau_mot_de_passe: nouveauMotDePasse,
+  } = req.body || {};
+
+  if (!motDePasseActuel || !nouveauMotDePasse) {
+    return res.status(400).json({ error: 'Le mot de passe actuel et le nouveau mot de passe sont requis.' });
+  }
+
+  if (!isStrongPassword(nouveauMotDePasse)) {
+    return res.status(400).json({
+      error:
+        'Le mot de passe doit faire au moins 12 caractères avec majuscule, minuscule, chiffre et caractère spécial (!@#?%&*).',
+    });
+  }
+
+  try {
+    const db = await getPool();
+    const [rows] = await db.execute('SELECT id, nom, prenom, email, mot_de_passe FROM utilisateur WHERE id = ?', [req.auth.sub]);
+
+    if (rows.length === 0) {
+      clearAuthCookie(res);
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    const user = rows[0];
+    const passwordOk = await bcrypt.compare(motDePasseActuel, user.mot_de_passe);
+
+    if (!passwordOk) {
+      return res.status(401).json({ error: 'Le mot de passe actuel est incorrect.' });
+    }
+
+    const isSamePassword = await bcrypt.compare(nouveauMotDePasse, user.mot_de_passe);
+    if (isSamePassword) {
+      return res.status(400).json({ error: 'Le nouveau mot de passe doit être différent de l’ancien.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(nouveauMotDePasse, 10);
+    await db.execute('UPDATE utilisateur SET mot_de_passe = ? WHERE id = ?', [hashedPassword, req.auth.sub]);
+
+    return res.json({ message: 'Mot de passe mis à jour.' });
   } catch (error) {
     return next(error);
   }

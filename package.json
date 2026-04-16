@@ -1,0 +1,9 @@
+{
+  "name": "projet-ibc",
+  "private": true,
+  "scripts": {
+    "lint": "npm --prefix frontend run lint && npm --prefix backend run lint",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "lint:backend": "npm --prefix backend run lint"
+  }
+}

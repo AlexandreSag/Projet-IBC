@@ -39,7 +39,7 @@ function createApp() {
     res.status(404).json({ error: 'Route non trouvée' });
   });
 
-  app.use((err, req, res, next) => {
+  app.use((err, req, res, _next) => {
     console.error('Unhandled error', err);
     res.status(500).json({ error: 'Erreur interne du serveur' });
   });

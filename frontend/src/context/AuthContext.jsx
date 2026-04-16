@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
       const data = await requestJson('/api/me', { method: 'GET' });
       setUser(data?.utilisateur || null);
       return data?.utilisateur || null;
-    } catch (error) {
+    } catch {
       setUser(null);
       return null;
     } finally {
@@ -61,6 +61,22 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
+  const updateProfile = useCallback(async (payload) => {
+    const data = await requestJson('/api/me', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    setUser(data?.utilisateur || null);
+    return data;
+  }, []);
+
+  const changePassword = useCallback((payload) => {
+    return requestJson('/api/me/password', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await requestJson('/api/logout', { method: 'POST' });
@@ -77,9 +93,11 @@ export function AuthProvider({ children }) {
       refreshSession,
       login,
       register,
+      updateProfile,
+      changePassword,
       logout,
     }),
-    [isLoading, login, logout, refreshSession, register, user],
+    [changePassword, isLoading, login, logout, refreshSession, register, updateProfile, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
