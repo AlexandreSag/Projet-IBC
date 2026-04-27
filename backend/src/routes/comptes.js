@@ -1,6 +1,7 @@
 const express = require('express');
 const { getPool } = require('../config/database');
 const { authMiddleware } = require('../middleware/authMiddleware');
+const abonnementService = require('../services/abonnementService');
 
 const router = express.Router();
 
@@ -142,18 +143,15 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'nom_court et date_creation sont requis.' });
     }
 
-    const [existing] = await db.execute(
-      'SELECT COUNT(*) AS total FROM compte WHERE utilisateur_id = ?',
-      [userId]
-    );
-    const [userRow] = await db.execute(
-      'SELECT abonnement_id FROM utilisateur WHERE id = ?',
-      [userId]
-    );
-    const isPremium = userRow[0]?.abonnement_id !== null;
-    if (!isPremium && existing[0].total >= 2) {
+    const quota = await abonnementService.canCreateCompte(userId);
+    if (!quota.allowed) {
       return res.status(403).json({
-        error: 'Limite atteinte. Passez à un abonnement premium pour créer plus de comptes.',
+        error: quota.message,
+        quota: {
+          resource: quota.resource,
+          used: quota.used,
+          limit: quota.limit,
+        },
       });
     }
 
