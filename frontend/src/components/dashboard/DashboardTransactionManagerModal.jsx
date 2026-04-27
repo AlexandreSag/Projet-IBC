@@ -14,6 +14,7 @@ export default function DashboardTransactionManagerModal({
   const defaultCompteId = comptes[0] ? String(comptes[0].id) : '';
   const [saving, setSaving] = useState(false);
   const [editingItemId, setEditingItemId] = useState(null);
+  const [formMessage, setFormMessage] = useState(null);
   const [formValues, setFormValues] = useState({
     nom: '',
     description: '',
@@ -42,6 +43,7 @@ export default function DashboardTransactionManagerModal({
 
   const resetForm = () => {
     setEditingItemId(null);
+    setFormMessage(null);
     setFormValues({
       nom: '',
       description: '',
@@ -84,6 +86,7 @@ export default function DashboardTransactionManagerModal({
   };
 
   const handleEdit = (item) => {
+    setFormMessage(null);
     setEditingItemId(item.id);
     setFormValues({
       nom: item.nom || item.nom_court || '',
@@ -102,6 +105,7 @@ export default function DashboardTransactionManagerModal({
   const handleDelete = async (itemId) => {
     const shouldDelete = window.confirm(`Supprimer ce ${itemLabel} ?`);
     if (!shouldDelete) return;
+    setFormMessage(null);
 
     try {
       await onDeleteItem(itemId);
@@ -109,12 +113,16 @@ export default function DashboardTransactionManagerModal({
         resetForm();
       }
     } catch (error) {
-      alert(error.message || 'Erreur lors de la suppression');
+      setFormMessage({
+        type: 'error',
+        text: error.message || 'Erreur lors de la suppression',
+      });
     }
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    setFormMessage(null);
     const frequenceValue = Number(formValues.frequence_mois);
     const dateDebutValue =
       formValues.duree_type === 'ponctuelle' ? formValues.date : formValues.date_debut;
@@ -169,7 +177,10 @@ export default function DashboardTransactionManagerModal({
       }
       resetForm();
     } catch (error) {
-      alert(error.message || `Erreur lors de l'enregistrement du ${itemLabel}`);
+      setFormMessage({
+        type: 'error',
+        text: error.message || `Erreur lors de l'enregistrement du ${itemLabel}`,
+      });
     } finally {
       setSaving(false);
     }
@@ -195,6 +206,8 @@ export default function DashboardTransactionManagerModal({
 
         <div className="dashboard-transaction-manager-grid">
           <form onSubmit={handleSubmit} className="auth-form dashboard-modal-form dashboard-transaction-form">
+            {formMessage && <p className={`feedback ${formMessage.type}`}>{formMessage.text}</p>}
+
             <div className="field-row">
               <label htmlFor={`${itemType}-nom`}>Nom</label>
               <input

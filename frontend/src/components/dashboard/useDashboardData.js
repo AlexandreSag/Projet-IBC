@@ -1,5 +1,37 @@
 import { useCallback, useEffect, useState } from 'react';
 
+function formatQuotaMessage(errorData, fallbackError) {
+  const { error, quota } = errorData || {};
+
+  if (!quota) {
+    return error || fallbackError;
+  }
+
+  const labels = {
+    comptes: 'comptes',
+    depenses: 'dépenses',
+    revenus: 'revenus',
+  };
+
+  const resourceLabel = labels[quota.resource] || 'éléments';
+  const usageLabel = quota.limit === null || quota.limit === undefined
+    ? `${quota.used} ${resourceLabel} utilisés`
+    : `${quota.used}/${quota.limit} ${resourceLabel} utilisés`;
+
+  return `${error || fallbackError} (${usageLabel}).`;
+}
+
+function createDashboardApiError(response, errorData, fallbackError) {
+  const message = formatQuotaMessage(errorData, fallbackError);
+  const error = new Error(message);
+
+  error.status = response.status;
+  error.quota = errorData?.quota || null;
+  error.isQuotaError = response.status === 403 && Boolean(errorData?.quota);
+
+  return error;
+}
+
 async function loadCollection(endpoint, key, setData, setLoading, errorMessage) {
   try {
     const response = await fetch(endpoint, { credentials: 'include' });
@@ -28,7 +60,7 @@ async function requestDashboardApi(endpoint, { method, body } = {}, fallbackErro
   const response = await fetch(endpoint, options);
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || fallbackError);
+    throw createDashboardApiError(response, errorData, fallbackError);
   }
 }
 

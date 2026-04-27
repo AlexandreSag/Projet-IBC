@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 
 export default function DashboardTopbar({ subtitle, activeAction = 'dashboard' }) {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, abonnement, isPremium, logout } = useAuth();
 
   const userLabel = user?.prenom || user?.nom || user?.email || 'Utilisateur';
   const userInitials = userLabel
@@ -18,6 +18,8 @@ export default function DashboardTopbar({ subtitle, activeAction = 'dashboard' }
     navigate('/login', { replace: true });
   };
 
+  const abonnementLabel = abonnement?.nom || 'Gratuit';
+
   return (
     <header className="dashboard-topbar">
       <div className="dashboard-brand">
@@ -30,9 +32,15 @@ export default function DashboardTopbar({ subtitle, activeAction = 'dashboard' }
         </div>
       </div>
       <div className="dashboard-top-actions">
-        <button type="button" className="btn primary dashboard-premium-btn">
-          Passer à Premium
-        </button>
+        {isPremium ? (
+          <div className="dashboard-plan-badge" title={`Plan actuel: ${abonnementLabel}`}>
+            Plan {abonnementLabel}
+          </div>
+        ) : (
+          <button type="button" className="btn primary dashboard-premium-btn">
+            Passer à Premium
+          </button>
+        )}
         <button type="button" className="dashboard-icon-btn" aria-label="Notifications">
           <i className="fa-regular fa-bell" aria-hidden="true" />
         </button>

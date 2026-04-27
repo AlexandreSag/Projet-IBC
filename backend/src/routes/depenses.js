@@ -1,6 +1,7 @@
 const express = require('express');
 const { authMiddleware } = require('../middleware/authMiddleware');
 const depenseValidator = require('../validators/depenseValidator');
+const abonnementService = require('../services/abonnementService');
 const depenseService = require('../services/depenseService');
 
 const router = express.Router();
@@ -30,6 +31,19 @@ router.post('/', async (req, res, next) => {
     const isOwner = await depenseService.ensureCompteOwner(payload.compte_id, userId);
     if (!isOwner) {
       return res.status(403).json({ error: 'Compte invalide pour cet utilisateur.' });
+    }
+
+    const quota = await abonnementService.canCreateDepense(userId, payload.compte_id);
+    if (!quota.allowed) {
+      return res.status(403).json({
+        error: quota.message,
+        quota: {
+          resource: quota.resource,
+          used: quota.used,
+          limit: quota.limit,
+          compte_id: payload.compte_id,
+        },
+      });
     }
 
     const insertId = await depenseService.createDepense(payload);

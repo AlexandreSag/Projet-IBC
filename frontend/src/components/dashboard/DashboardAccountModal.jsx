@@ -3,6 +3,7 @@ import { useRef } from 'react';
 export default function DashboardAccountModal({
   account,
   customRates,
+  message,
   mode,
   presets,
   onAccountChange,
@@ -43,6 +44,8 @@ export default function DashboardAccountModal({
           <h3 id={titleId}>{title}</h3>
         </div>
         <form onSubmit={onSubmit} className="auth-form dashboard-modal-form">
+          {message && <p className={`feedback ${message.type}`}>{message.text}</p>}
+
           <div className="field-row">
             <label htmlFor={`${idPrefix}-name`}>Nom du compte</label>
             <input

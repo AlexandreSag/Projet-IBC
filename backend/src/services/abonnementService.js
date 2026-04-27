@@ -136,6 +136,17 @@ function buildQuotaDecision({ abonnement, resource, used, message }) {
   };
 }
 
+function buildUsageEntry(limit, used) {
+  const isUnlimited = limit === null;
+
+  return {
+    used,
+    limit,
+    isUnlimited,
+    remaining: isUnlimited ? null : Math.max(limit - used, 0),
+  };
+}
+
 async function canCreateCompte(userId) {
   const [abonnement, used] = await Promise.all([
     getUserAbonnement(userId),
@@ -178,10 +189,52 @@ async function canCreateRevenu(userId, compteId) {
   });
 }
 
+async function getUserAbonnementStatus(userId) {
+  const db = await getPool();
+  const abonnement = await getUserAbonnement(userId);
+
+  const [comptesCountRows, comptesDetailsRows] = await Promise.all([
+    db.execute('SELECT COUNT(*) AS total FROM compte WHERE utilisateur_id = ?', [userId]),
+    db.execute(
+      `SELECT
+        c.id,
+        c.nom_court,
+        COUNT(DISTINCT d.id) AS depenses_total,
+        COUNT(DISTINCT r.id) AS revenus_total
+       FROM compte c
+       LEFT JOIN depense d ON d.compte_id = c.id
+       LEFT JOIN revenu r ON r.compte_id = c.id
+       WHERE c.utilisateur_id = ?
+       GROUP BY c.id, c.nom_court
+       ORDER BY c.date_creation DESC, c.id DESC`,
+      [userId],
+    ),
+  ]);
+
+  const comptesUsed = Number(comptesCountRows[0][0]?.total || 0);
+  const comptesLimit = abonnement?.limits.comptes ?? null;
+  const depensesLimit = abonnement?.limits.depensesParCompte ?? null;
+  const revenusLimit = abonnement?.limits.revenusParCompte ?? null;
+
+  return {
+    abonnement,
+    usage: {
+      comptes: buildUsageEntry(comptesLimit, comptesUsed),
+      comptesDetails: comptesDetailsRows[0].map((row) => ({
+        id: row.id,
+        nom_court: row.nom_court,
+        depenses: buildUsageEntry(depensesLimit, Number(row.depenses_total || 0)),
+        revenus: buildUsageEntry(revenusLimit, Number(row.revenus_total || 0)),
+      })),
+    },
+  };
+}
+
 module.exports = {
   PLAN_CODES,
   QUOTA_RESOURCES,
   getUserAbonnement,
+  getUserAbonnementStatus,
   canCreateCompte,
   canCreateDepense,
   canCreateRevenu,

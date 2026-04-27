@@ -35,6 +35,10 @@
   gap: 1rem;
 }
 
+.settings-card-wide {
+  grid-column: 1 / -1;
+}
+
 .settings-card {
   padding: 1.4rem;
 }
@@ -59,6 +63,74 @@
   padding-top: 0.35rem;
 }
 
+.settings-plan-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.settings-plan-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.settings-plan-summary h3,
+.settings-account-quota-list h3 {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 1.35rem;
+}
+
+.settings-plan-price {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 14px;
+  background: var(--couleur-surface-claire);
+  padding: 0.9rem 1rem;
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--couleur-primaire-texte);
+  min-width: 110px;
+  text-align: center;
+}
+
+.settings-subtle-text {
+  margin: 0;
+  color: var(--couleur-texte-3);
+}
+
+.settings-quota-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.settings-quota-card,
+.settings-account-quota-item {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 14px;
+  background: var(--couleur-surface-claire);
+  padding: 1rem;
+}
+
+.settings-quota-card strong,
+.settings-account-quota-item strong {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.settings-quota-card p,
+.settings-account-quota-item p {
+  margin: 0;
+  color: var(--couleur-texte-2);
+}
+
+.settings-account-quota-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 @media (max-width: 900px) {
   .settings-grid {
     grid-template-columns: 1fr;
@@ -67,6 +139,12 @@
   .settings-hero {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .settings-plan-summary,
+  .settings-quota-grid {
+    grid-template-columns: 1fr;
+    display: grid;
   }
 }
 

@@ -39,9 +39,20 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [newAccount, setNewAccount] = useState(createEmptyAccountForm);
   const [customTaux, setCustomTaux] = useState(false);
+  const [actionMessage, setActionMessage] = useState(null);
+  const [accountModalMessage, setAccountModalMessage] = useState(null);
+
+  const showErrorMessage = (error, fallbackText = 'Erreur réseau') => {
+    setActionMessage({
+      type: 'error',
+      text: error.message || fallbackText,
+    });
+  };
 
   const handleAddAccount = async (event) => {
     event.preventDefault();
+    setActionMessage(null);
+    setAccountModalMessage(null);
 
     try {
       await createAccount(newAccount);
@@ -49,7 +60,10 @@ export default function DashboardPage() {
       setNewAccount(createEmptyAccountForm());
       setCustomTaux(false);
     } catch (error) {
-      alert(error.message || 'Erreur réseau');
+      setAccountModalMessage({
+        type: 'error',
+        text: error.message || 'Erreur réseau',
+      });
     }
   };
 
@@ -57,34 +71,42 @@ export default function DashboardPage() {
     const editableAccount = createEditableAccountForm(compte);
     setEditingAccount(editableAccount);
     setCustomTaux(!hasPresetRates(editableAccount));
+    setAccountModalMessage(null);
   };
 
   const handleUpdateAccount = async (event) => {
     event.preventDefault();
     if (!editingAccount) return;
+    setActionMessage(null);
+    setAccountModalMessage(null);
 
     try {
       await updateAccount(editingAccount.id, editingAccount);
       setEditingAccount(null);
       setCustomTaux(false);
     } catch (error) {
-      alert(error.message || 'Erreur réseau');
+      setAccountModalMessage({
+        type: 'error',
+        text: error.message || 'Erreur réseau',
+      });
     }
   };
 
   const handleDeleteAccount = async (compteId) => {
     if (!window.confirm('Supprimer ce compte et toutes ses dépenses/revenus associés ?')) return;
+    setActionMessage(null);
 
     try {
       await deleteAccount(compteId);
     } catch (error) {
-      alert(error.message || 'Erreur réseau');
+      showErrorMessage(error);
     }
   };
 
   const closeEditModal = () => {
     setEditingAccount(null);
     setCustomTaux(false);
+    setAccountModalMessage(null);
   };
 
   const renderTabContent = () => {
@@ -127,6 +149,8 @@ export default function DashboardPage() {
       <DashboardTopbar subtitle="Tableau de bord financier" activeAction="dashboard" />
 
       <main className="dashboard-page">
+        {actionMessage && <p className={`feedback ${actionMessage.type}`}>{actionMessage.text}</p>}
+
         <section className="dashboard-metrics">
           {buildSummaryCards({ comptes, depenses, revenus }).map((card) => (
             <article key={card.title} className="dashboard-metric-card">
@@ -161,10 +185,14 @@ export default function DashboardPage() {
           <DashboardAccountModal
             account={newAccount}
             customRates={customTaux}
+            message={accountModalMessage}
             mode="add"
             presets={accountPresets}
             onAccountChange={setNewAccount}
-            onClose={() => setShowAddModal(false)}
+            onClose={() => {
+              setShowAddModal(false);
+              setAccountModalMessage(null);
+            }}
             onCustomRatesChange={setCustomTaux}
             onSubmit={handleAddAccount}
           />
@@ -174,6 +202,7 @@ export default function DashboardPage() {
           <DashboardAccountModal
             account={editingAccount}
             customRates={customTaux}
+            message={accountModalMessage}
             mode="edit"
             presets={accountPresets}
             onAccountChange={setEditingAccount}

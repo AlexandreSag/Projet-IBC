@@ -88,6 +88,9 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       user,
+      abonnement: user?.abonnement || null,
+      isPremium: user?.abonnement?.isPremium || false,
+      isFreePlan: user?.abonnement?.isFree || false,
       isLoading,
       isAuthenticated: Boolean(user),
       refreshSession,

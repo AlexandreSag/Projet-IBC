@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getPool } = require('../config/database');
 const { authMiddleware } = require('../middleware/authMiddleware');
+const abonnementService = require('../services/abonnementService');
 
 const router = express.Router();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
@@ -55,6 +56,24 @@ function isStrongPassword(password) {
     /[0-9]/.test(password) &&
     /[!@#?%&*]/.test(password)
   );
+}
+
+async function getSessionUserById(userId) {
+  const db = await getPool();
+  const [rows] = await db.execute(
+    'SELECT id, nom, prenom, email FROM utilisateur WHERE id = ?',
+    [userId],
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const abonnement = await abonnementService.getUserAbonnement(userId);
+  return {
+    ...rows[0],
+    abonnement,
+  };
 }
 
 router.post('/register', async (req, res, next) => {
@@ -118,8 +137,8 @@ router.post('/login', async (req, res, next) => {
     const token = issueJwt(user);
     res.cookie(JWT_COOKIE_NAME, token, getCookieOptions());
 
-    const { mot_de_passe: _ignored, ...safeUser } = user;
-    return res.json({ message: 'Connexion réussie.', utilisateur: safeUser, token });
+    const sessionUser = await getSessionUserById(user.id);
+    return res.json({ message: 'Connexion réussie.', utilisateur: sessionUser, token });
   } catch (error) {
     return next(error);
   }
@@ -129,15 +148,22 @@ router.use(authMiddleware);
 
 router.get('/me', async (req, res, next) => {
   try {
-    const db = await getPool();
-    const [rows] = await db.execute('SELECT id, nom, prenom, email FROM utilisateur WHERE id = ?', [req.auth.sub]);
-
-    if (rows.length === 0) {
+    const sessionUser = await getSessionUserById(req.auth.sub);
+    if (!sessionUser) {
       clearAuthCookie(res);
       return res.status(401).json({ error: 'Session invalide.' });
     }
 
-    return res.json({ utilisateur: rows[0] });
+    return res.json({ utilisateur: sessionUser });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/me/abonnement-status', async (req, res, next) => {
+  try {
+    const status = await abonnementService.getUserAbonnementStatus(req.auth.sub);
+    return res.json(status);
   } catch (error) {
     return next(error);
   }
@@ -168,17 +194,16 @@ router.put('/me', async (req, res, next) => {
       req.auth.sub,
     ]);
 
-    const [rows] = await db.execute('SELECT id, nom, prenom, email FROM utilisateur WHERE id = ?', [req.auth.sub]);
-    if (rows.length === 0) {
+    const sessionUser = await getSessionUserById(req.auth.sub);
+    if (!sessionUser) {
       clearAuthCookie(res);
       return res.status(404).json({ error: 'Utilisateur introuvable.' });
     }
 
-    const updatedUser = rows[0];
-    const token = issueJwt(updatedUser);
+    const token = issueJwt(sessionUser);
     res.cookie(JWT_COOKIE_NAME, token, getCookieOptions());
 
-    return res.json({ message: 'Profil mis à jour.', utilisateur: updatedUser, token });
+    return res.json({ message: 'Profil mis à jour.', utilisateur: sessionUser, token });
   } catch (error) {
     return next(error);
   }

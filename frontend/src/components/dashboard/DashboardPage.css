@@ -61,6 +61,21 @@
   border-radius: 10px;
 }
 
+.dashboard-plan-badge {
+  min-width: 210px;
+  min-height: 44px;
+  padding: 0.72rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(14, 165, 183, 0.22);
+  background: rgba(14, 165, 183, 0.12);
+  color: #0f5f6a;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
 .dashboard-icon-btn {
   width: 36px;
   height: 36px;

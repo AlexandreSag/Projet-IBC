@@ -18,7 +18,7 @@ function isStrongPassword(password) {
 }
 
 export default function SettingsPage() {
-  const { user, updateProfile, changePassword } = useAuth();
+  const { user, abonnement, updateProfile, changePassword } = useAuth();
   const [profileForm, setProfileForm] = useState({
     nom: '',
     prenom: '',
@@ -31,6 +31,9 @@ export default function SettingsPage() {
   });
   const [profileMessage, setProfileMessage] = useState(null);
   const [passwordMessage, setPasswordMessage] = useState(null);
+  const [abonnementStatus, setAbonnementStatus] = useState(null);
+  const [abonnementError, setAbonnementError] = useState(null);
+  const [loadingAbonnementStatus, setLoadingAbonnementStatus] = useState(true);
   const [isProfileSubmitting, setIsProfileSubmitting] = useState(false);
   const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
 
@@ -41,6 +44,54 @@ export default function SettingsPage() {
       email: user?.email || '',
     });
   }, [user]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAbonnementStatus() {
+      setLoadingAbonnementStatus(true);
+      setAbonnementError(null);
+
+      try {
+        const response = await fetch('/api/me/abonnement-status', {
+          method: 'GET',
+          credentials: 'include',
+        });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(data?.error || 'Impossible de charger les informations d’abonnement.');
+        }
+
+        if (!cancelled) {
+          setAbonnementStatus(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setAbonnementStatus(null);
+          setAbonnementError(error.message || 'Impossible de charger les informations d’abonnement.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingAbonnementStatus(false);
+        }
+      }
+    }
+
+    void loadAbonnementStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const formatUsage = (usage) => {
+    if (!usage) return 'Indisponible';
+    if (usage.isUnlimited) return `${usage.used} utilisés (illimité)`;
+    return `${usage.used}/${usage.limit} utilisés, ${usage.remaining} restants`;
+  };
+
+  const statusAbonnement = abonnementStatus?.abonnement || abonnement;
 
   const handleProfileSubmit = async (event) => {
     event.preventDefault();
@@ -129,6 +180,83 @@ export default function SettingsPage() {
         </section>
 
         <section className="settings-grid">
+          <article className="dashboard-panel settings-card settings-card-wide">
+            <div className="dashboard-panel-header settings-card-header">
+              <div>
+                <h2>
+                  <i className="fa-regular fa-gem" aria-hidden="true" />
+                  Abonnement et quotas
+                </h2>
+                <p>Consultez votre plan actuel et les limites appliquées à votre compte.</p>
+              </div>
+            </div>
+
+            {loadingAbonnementStatus ? (
+              <p className="settings-subtle-text">Chargement des quotas...</p>
+            ) : abonnementError ? (
+              <p className="feedback error">{abonnementError}</p>
+            ) : (
+              <div className="settings-plan-section">
+                <div className="settings-plan-summary">
+                  <div>
+                    <span className="pill">Plan actuel</span>
+                    <h3>{statusAbonnement?.nom || 'Gratuit'}</h3>
+                    <p className="settings-subtle-text">
+                      {statusAbonnement?.isPremium
+                        ? 'Aucune limite de comptes, dépenses ou revenus.'
+                        : 'Des quotas s’appliquent à votre utilisation.'}
+                    </p>
+                  </div>
+                  <div className="settings-plan-price">
+                    {statusAbonnement?.prix === '0.00' || statusAbonnement?.prix === 0 || !statusAbonnement?.prix
+                      ? '0 €'
+                      : `${statusAbonnement.prix} €`}
+                  </div>
+                </div>
+
+                <div className="settings-quota-grid">
+                  <article className="settings-quota-card">
+                    <strong>Comptes</strong>
+                    <p>{formatUsage(abonnementStatus?.usage?.comptes)}</p>
+                  </article>
+                  <article className="settings-quota-card">
+                    <strong>Dépenses par compte</strong>
+                    <p>
+                      {statusAbonnement?.limits?.depensesParCompte === null
+                        ? 'Illimité'
+                        : `${statusAbonnement?.limits?.depensesParCompte ?? '-'} maximum`}
+                    </p>
+                  </article>
+                  <article className="settings-quota-card">
+                    <strong>Revenus par compte</strong>
+                    <p>
+                      {statusAbonnement?.limits?.revenusParCompte === null
+                        ? 'Illimité'
+                        : `${statusAbonnement?.limits?.revenusParCompte ?? '-'} maximum`}
+                    </p>
+                  </article>
+                </div>
+
+                <div className="settings-account-quota-list">
+                  <h3>Usage par compte</h3>
+                  {abonnementStatus?.usage?.comptesDetails?.length ? (
+                    abonnementStatus.usage.comptesDetails.map((compte) => (
+                      <article key={compte.id} className="settings-account-quota-item">
+                        <div>
+                          <strong>{compte.nom_court}</strong>
+                        </div>
+                        <p>Dépenses: {formatUsage(compte.depenses)}</p>
+                        <p>Revenus: {formatUsage(compte.revenus)}</p>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="settings-subtle-text">Aucun compte créé pour le moment.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </article>
+
           <article className="dashboard-panel settings-card">
             <div className="dashboard-panel-header settings-card-header">
               <div>
