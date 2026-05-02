@@ -2,101 +2,44 @@ const express = require('express');
 const { getPool } = require('../config/database');
 const { authMiddleware } = require('../middleware/authMiddleware');
 const abonnementService = require('../services/abonnementService');
+const { getPrevisionForUser, parseDateValue } = require('../services/previsionService');
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
-function countOccurrences(dateDebut, dateFin, frequenceMois, today) {
-  const start = new Date(dateDebut);
-  const end = dateFin ? new Date(dateFin) : today;
-  const effectiveEnd = end < today ? end : today;
-
-  if (start > today) return 0;
-  if (frequenceMois === 0) return 1;
-
-  let count = 0;
-  let current = new Date(start);
-  while (current <= effectiveEnd) {
-    count++;
-    current.setMonth(current.getMonth() + frequenceMois);
-  }
-  return count;
-}
-
-async function calculerSolde(db, compte, today = new Date()) {
-  const [depenses] = await db.execute(
-    'SELECT * FROM depense WHERE compte_id = ?',
-    [compte.id]
-  );
-  const [revenus] = await db.execute(
-    'SELECT * FROM revenu WHERE compte_id = ?',
-    [compte.id]
-  );
-
-  const totalDepenses = depenses.reduce((sum, d) => {
-    const n = countOccurrences(d.date_debut, d.date_fin, d.frequence_mois ?? 0, today);
-    return sum + parseFloat(d.montant) * n;
-  }, 0);
-
-  const totalRevenus = revenus.reduce((sum, r) => {
-    const n = countOccurrences(r.date_debut, r.date_fin, r.frequence_mois ?? 0, today);
-    return sum + parseFloat(r.montant) * n;
-  }, 0);
-
-  let totalInterets = 0;
-  const tauxRemuneration = parseFloat(compte.taux_remuneration);
-  if (tauxRemuneration > 0) {
-    const tauxMensuel = tauxRemuneration / 100 / 12;
-    const tauxImpo = parseFloat(compte.taux_imposition || 0) / 100;
-    const dateCreation = new Date(compte.date_creation);
-    let nbMois = 0;
-    let cursor = new Date(dateCreation);
-    cursor.setMonth(cursor.getMonth() + 1);
-    while (cursor <= today) {
-      nbMois++;
-      cursor.setMonth(cursor.getMonth() + 1);
-    }
-    const soldeBase = parseFloat(compte.solde_initial || 0);
-    totalInterets = soldeBase * tauxMensuel * nbMois * (1 - tauxImpo);
-  }
-
-  const solde =
-    parseFloat(compte.solde_initial || 0) +
-    totalRevenus -
-    totalDepenses +
-    totalInterets;
-
-  return Math.round(solde * 100) / 100;
-}
-
 router.get('/', async (req, res, next) => {
   try {
-    const db = await getPool();
     const userId = req.auth.sub;
-    const search = req.query.search || '';
+    const search = String(req.query.search || '').trim().toLowerCase();
+    const targetDate = parseDateValue(new Date());
+    const prevision = await getPrevisionForUser(userId, targetDate);
 
-    let query = 'SELECT * FROM compte WHERE utilisateur_id = ?';
-    const params = [userId];
-
-    if (search) {
-      query += ' AND (nom_court LIKE ? OR description LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`);
-    }
-
-    query += ' ORDER BY date_creation DESC';
-
-    const [comptes] = await db.execute(query, params);
-    const today = new Date();
-
-    const comptesAvecSolde = await Promise.all(
-      comptes.map(async (compte) => {
-        const solde = await calculerSolde(db, compte, today);
-        return { ...compte, solde };
+    const comptes = prevision.comptes
+      .map((comptePrevision) => ({
+        id: comptePrevision.id,
+        nom_court: comptePrevision.nom_court,
+        description: comptePrevision.description,
+        date_creation: comptePrevision.date_creation,
+        taux_remuneration: comptePrevision.taux_remuneration,
+        taux_imposition: comptePrevision.taux_imposition,
+        solde_initial: comptePrevision.solde_initial,
+        solde: comptePrevision.solde_previsionnel,
+      }))
+      .filter((compte) => {
+        if (!search) return true;
+        return (
+          String(compte.nom_court || '').toLowerCase().includes(search)
+          || String(compte.description || '').toLowerCase().includes(search)
+        );
       })
-    );
+      .sort((left, right) => {
+        const leftDate = new Date(left.date_creation).getTime();
+        const rightDate = new Date(right.date_creation).getTime();
+        return rightDate - leftDate;
+      });
 
-    return res.json({ comptes: comptesAvecSolde });
+    return res.json({ comptes });
   } catch (error) {
     return next(error);
   }
@@ -109,17 +52,27 @@ router.get('/:id', async (req, res, next) => {
 
     const [rows] = await db.execute(
       'SELECT * FROM compte WHERE id = ? AND utilisateur_id = ?',
-      [req.params.id, userId]
+      [req.params.id, userId],
     );
 
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Compte introuvable.' });
     }
 
-    const compte = rows[0];
-    const solde = await calculerSolde(db, compte);
+    const targetDate = parseDateValue(new Date());
+    const prevision = await getPrevisionForUser(userId, targetDate);
+    const comptePrevision = prevision.comptes.find((compte) => String(compte.id) === String(req.params.id));
 
-    return res.json({ compte: { ...compte, solde } });
+    if (!comptePrevision) {
+      return res.status(404).json({ error: 'Compte introuvable.' });
+    }
+
+    return res.json({
+      compte: {
+        ...rows[0],
+        solde: comptePrevision.solde_previsionnel,
+      },
+    });
   } catch (error) {
     return next(error);
   }
@@ -156,10 +109,10 @@ router.post('/', async (req, res, next) => {
     }
 
     const [result] = await db.execute(
-      `INSERT INTO compte 
+      `INSERT INTO compte
         (utilisateur_id, nom_court, description, date_creation, taux_remuneration, taux_imposition, solde_initial)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [userId, nom_court, description, date_creation, taux_remuneration, taux_imposition, solde_initial]
+      [userId, nom_court, description, date_creation, taux_remuneration, taux_imposition, solde_initial],
     );
 
     const [newCompte] = await db.execute('SELECT * FROM compte WHERE id = ?', [result.insertId]);
@@ -177,7 +130,7 @@ router.put('/:id', async (req, res, next) => {
 
     const [rows] = await db.execute(
       'SELECT * FROM compte WHERE id = ? AND utilisateur_id = ?',
-      [req.params.id, userId]
+      [req.params.id, userId],
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Compte introuvable.' });
@@ -201,13 +154,20 @@ router.put('/:id', async (req, res, next) => {
         taux_imposition = COALESCE(?, taux_imposition),
         solde_initial = COALESCE(?, solde_initial)
        WHERE id = ?`,
-      [nom_court, description, date_creation, taux_remuneration, taux_imposition, solde_initial, req.params.id]
+      [nom_court, description, date_creation, taux_remuneration, taux_imposition, solde_initial, req.params.id],
     );
 
     const [updated] = await db.execute('SELECT * FROM compte WHERE id = ?', [req.params.id]);
-    const solde = await calculerSolde(db, updated[0]);
+    const targetDate = parseDateValue(new Date());
+    const prevision = await getPrevisionForUser(userId, targetDate);
+    const comptePrevision = prevision.comptes.find((compte) => String(compte.id) === String(req.params.id));
 
-    return res.json({ compte: { ...updated[0], solde } });
+    return res.json({
+      compte: {
+        ...updated[0],
+        solde: comptePrevision?.solde_previsionnel ?? 0,
+      },
+    });
   } catch (error) {
     return next(error);
   }
@@ -220,7 +180,7 @@ router.delete('/:id', async (req, res, next) => {
 
     const [rows] = await db.execute(
       'SELECT * FROM compte WHERE id = ? AND utilisateur_id = ?',
-      [req.params.id, userId]
+      [req.params.id, userId],
     );
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Compte introuvable.' });

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import DashboardAccountModal from './dashboard/DashboardAccountModal.jsx';
+import DashboardPrevisionsTab from './dashboard/DashboardPrevisionsTab.jsx';
 import DashboardOverviewTab from './dashboard/DashboardOverviewTab.jsx';
 import DashboardTransactionsTab from './dashboard/DashboardTransactionsTab.jsx';
 import DashboardPlaceholderTab from './dashboard/DashboardPlaceholderTab.jsx';
@@ -139,6 +140,10 @@ export default function DashboardPage() {
           onDeleteRevenu={deleteRevenu}
         />
       );
+    }
+
+    if (activeTab === 'previsions') {
+      return <DashboardPrevisionsTab />;
     }
 
     return <DashboardPlaceholderTab />;

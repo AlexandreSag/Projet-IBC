@@ -15,7 +15,7 @@ export const chartMax = 3600;
 export const dashboardTabs = [
   { id: 'overview', label: 'Vue d\'ensemble' },
   { id: 'transactions', label: 'Transactions' },
-  { id: 'forecasts', label: 'Prévisions' },
+  { id: 'previsions', label: 'Prévisions' },
   { id: 'exceptions', label: 'Exceptions' },
   { id: 'sharing', label: 'Partage' },
 ];

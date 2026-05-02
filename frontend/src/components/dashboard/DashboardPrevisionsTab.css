@@ -1,0 +1,259 @@
+.prevision-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.prevision-panel-header {
+  align-items: flex-end;
+}
+
+.prevision-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 190px;
+}
+
+.prevision-controls label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--couleur-texte-2);
+}
+
+.prevision-controls input {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 12px;
+  background: var(--couleur-surface);
+  padding: 0.78rem 0.9rem;
+  color: var(--couleur-texte);
+  font: inherit;
+}
+
+.prevision-target-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.95rem 1rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(15, 183, 182, 0.12), rgba(0, 153, 196, 0.12));
+  border: 1px solid rgba(0, 153, 196, 0.16);
+}
+
+.prevision-target-banner span {
+  text-transform: capitalize;
+  color: var(--couleur-primaire-texte);
+  font-weight: 700;
+}
+
+.prevision-target-banner strong {
+  font-size: 1rem;
+}
+
+.prevision-loading,
+.prevision-empty {
+  margin: 0;
+  padding: 1rem;
+  color: var(--couleur-texte-2);
+  border: 1px dashed var(--couleur-bordure-forte);
+  border-radius: 14px;
+  background: #f8fcfd;
+}
+
+.prevision-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 0.9rem;
+}
+
+.prevision-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 16px;
+}
+
+.prevision-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 920px;
+  background: #fcfdff;
+}
+
+.prevision-table th,
+.prevision-table td {
+  padding: 0.95rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--couleur-bordure);
+  vertical-align: middle;
+}
+
+.prevision-table th {
+  color: var(--couleur-texte-2);
+  font-size: 0.88rem;
+  font-weight: 700;
+  background: #f8fbfd;
+}
+
+.prevision-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.prevision-account-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.prevision-account-cell strong {
+  font-size: 0.98rem;
+}
+
+.prevision-account-cell span {
+  color: var(--couleur-texte-3);
+  font-size: 0.88rem;
+}
+
+.prevision-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.prevision-status.active {
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+}
+
+.prevision-status.inactive {
+  background: rgba(71, 85, 105, 0.12);
+  color: #475569;
+}
+
+.prevision-amount {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.prevision-amount.strong {
+  font-weight: 700;
+}
+
+.prevision-amount.positive {
+  color: #15803d;
+}
+
+.prevision-amount.negative {
+  color: #e11d48;
+}
+
+.prevision-amount.info {
+  color: #0f766e;
+}
+
+.prevision-account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.9rem;
+}
+
+.prevision-account-card {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fcfeff 0%, #f7fbfd 100%);
+  padding: 1rem;
+}
+
+.prevision-account-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.95rem;
+}
+
+.prevision-account-card-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.prevision-account-card-head p {
+  margin: 0.2rem 0 0;
+  color: var(--couleur-texte-3);
+}
+
+.prevision-account-card-head strong {
+  white-space: nowrap;
+  font-size: 1.1rem;
+}
+
+.prevision-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem 1rem;
+  margin: 0;
+}
+
+.prevision-breakdown div {
+  padding: 0.8rem 0.85rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.prevision-breakdown dt {
+  color: var(--couleur-texte-3);
+  font-size: 0.82rem;
+  margin-bottom: 0.35rem;
+}
+
+.prevision-breakdown dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.prevision-breakdown dd.positive {
+  color: #15803d;
+}
+
+.prevision-breakdown dd.negative {
+  color: #e11d48;
+}
+
+.prevision-breakdown dd.info {
+  color: #0f766e;
+}
+
+@media (max-width: 960px) {
+  .prevision-summary-grid {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .prevision-panel-header,
+  .prevision-target-banner,
+  .prevision-account-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .prevision-controls {
+    width: 100%;
+  }
+
+  .prevision-controls input {
+    width: 100%;
+  }
+
+  .prevision-summary-grid,
+  .prevision-breakdown {
+    grid-template-columns: 1fr;
+  }
+}
