@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS utilisateur (
   prenom VARCHAR(100),
   email VARCHAR(255) UNIQUE NOT NULL,
   mot_de_passe VARCHAR(255) NOT NULL,
+  email_verifie BOOLEAN NOT NULL DEFAULT TRUE,
+  email_verification_token_hash CHAR(64) NULL,
+  email_verification_token_expires_at DATETIME NULL,
   date_inscription TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   abonnement_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
   CONSTRAINT fk_utilisateur_abonnement FOREIGN KEY (abonnement_id) REFERENCES abonnement(id)

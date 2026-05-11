@@ -5,13 +5,17 @@ import {
   Link,
   Navigate,
   useLocation,
+  useSearchParams,
 } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import AuthForm from './components/AuthForm.jsx';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
 import DashboardPage from './components/DashboardPage.jsx';
 import SettingsPage from './components/SettingsPage.jsx';
-import { AuthProvider, useAuth } from './context/AuthContext.jsx';
+import { AuthProvider, requestJson, useAuth } from './context/AuthContext.jsx';
+
+const verificationRequests = new Map();
 
 const features = [
   {
@@ -150,6 +154,85 @@ function AuthPage({ mode }) {
   );
 }
 
+function VerifyEmailPage() {
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token');
+  const [status, setStatus] = useState('loading');
+  const [message, setMessage] = useState('Vérification de votre adresse email...');
+
+  useEffect(() => {
+    if (!token) {
+      setStatus('error');
+      setMessage('Le lien de vérification est invalide.');
+      return;
+    }
+
+    let cancelled = false;
+
+    async function verifyEmail() {
+      try {
+        let request = verificationRequests.get(token);
+        if (!request) {
+          request = requestJson(`/api/verify-email?token=${encodeURIComponent(token)}`, {
+            method: 'GET',
+          });
+          verificationRequests.set(token, request);
+        }
+
+        const data = await request;
+
+        if (!cancelled) {
+          setStatus('success');
+          setMessage(data.message || 'Adresse email vérifiée.');
+        }
+      } catch (error) {
+        verificationRequests.delete(token);
+        if (!cancelled) {
+          setStatus('error');
+          setMessage(error.message || 'Impossible de vérifier votre adresse email.');
+        }
+      }
+    }
+
+    void verifyEmail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  return (
+    <div className="auth-page">
+      <main className="auth-main">
+        <div className="back-link">
+          <Link to="/">Retour à l&apos;accueil</Link>
+        </div>
+        <div className="brand-line">
+          <div className="brand-icon">
+            <i className="fa-solid fa-wallet" aria-hidden="true" />
+          </div>
+          <span className="brand-name">Budgie</span>
+        </div>
+        <div className="card auth-card">
+          <div className="card-header">
+            <h2>Vérification de l&apos;email</h2>
+            {status === 'loading' ? (
+              <p className="lede small">{message}</p>
+            ) : (
+              <p className={`feedback ${status === 'error' ? 'error' : 'success'}`}>{message}</p>
+            )}
+          </div>
+          <div className="auth-footer">
+            <p className="auth-switch">
+              <Link to="/login">Aller à la connexion</Link>
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
@@ -171,7 +254,10 @@ function ProtectedRoute({ children }) {
 
 function AppShell() {
   const location = useLocation();
-  const isAuthRoute = location.pathname === '/login' || location.pathname === '/register';
+  const isAuthRoute =
+    location.pathname === '/login' ||
+    location.pathname === '/register' ||
+    location.pathname === '/verify-email';
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
   const isSettingsRoute = location.pathname.startsWith('/settings');
 
@@ -182,6 +268,7 @@ function AppShell() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<AuthPage mode="login" />} />
         <Route path="/register" element={<AuthPage mode="register" />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route
           path="/dashboard"
           element={

@@ -43,7 +43,10 @@ function createApp() {
 
   app.use((err, req, res, _next) => {
     console.error('Unhandled error', err);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    const statusCode = err.statusCode || 500;
+    res.status(statusCode).json({
+      error: statusCode === 502 ? err.message : statusCode >= 500 ? 'Erreur interne du serveur' : err.message,
+    });
   });
 
   return app;

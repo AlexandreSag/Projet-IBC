@@ -2,11 +2,13 @@ require('dotenv').config();
 
 const { waitForDatabase } = require('./config/database');
 const { createApp } = require('./app');
+const { ensureDatabaseSchema } = require('./services/schemaService');
 
 const port = Number(process.env.PORT || 8080);
 
 waitForDatabase()
-  .then(() => {
+  .then(async () => {
+    await ensureDatabaseSchema();
     const app = createApp();
     app.listen(port, () => {
       console.log(`API ready on port ${port}`);

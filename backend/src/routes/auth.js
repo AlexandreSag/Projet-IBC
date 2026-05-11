@@ -1,14 +1,17 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { getPool } = require('../config/database');
 const { authMiddleware } = require('../middleware/authMiddleware');
 const abonnementService = require('../services/abonnementService');
+const { sendVerificationEmail } = require('../services/emailService');
 
 const router = express.Router();
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
 const JWT_COOKIE_NAME = 'token';
 const JWT_COOKIE_TTL_MS = Number(process.env.JWT_COOKIE_TTL_MS || 24 * 60 * 60 * 1000);
+const EMAIL_VERIFICATION_TTL_MS = Number(process.env.EMAIL_VERIFICATION_TTL_MS || 24 * 60 * 60 * 1000);
 
 function getJwtSecret() {
   const jwtSecret = process.env.JWT_SECRET;
@@ -61,7 +64,7 @@ function isStrongPassword(password) {
 async function getSessionUserById(userId) {
   const db = await getPool();
   const [rows] = await db.execute(
-    'SELECT id, nom, prenom, email FROM utilisateur WHERE id = ?',
+    'SELECT id, nom, prenom, email, email_verifie FROM utilisateur WHERE id = ?',
     [userId],
   );
 
@@ -74,6 +77,18 @@ async function getSessionUserById(userId) {
     ...rows[0],
     abonnement,
   };
+}
+
+function getAppBaseUrl(req) {
+  return (process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+}
+
+function createEmailVerificationToken() {
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
+
+  return { token, tokenHash, expiresAt };
 }
 
 router.post('/register', async (req, res, next) => {
@@ -92,18 +107,94 @@ router.post('/register', async (req, res, next) => {
 
   try {
     const db = await getPool();
-    const [existing] = await db.execute('SELECT id FROM utilisateur WHERE email = ?', [email.trim()]);
+    const normalizedEmail = email.trim();
+    const normalizedNom = typeof nom === 'string' ? nom.trim() || null : null;
+    const normalizedPrenom = typeof prenom === 'string' ? prenom.trim() || null : null;
+    const [existing] = await db.execute('SELECT id, email_verifie FROM utilisateur WHERE email = ?', [normalizedEmail]);
     if (existing.length > 0) {
-      return res.status(409).json({ error: 'Un compte utilise déjà cet email.' });
+      if (existing[0].email_verifie) {
+        return res.status(409).json({ error: 'Un compte utilise déjà cet email.' });
+      }
+
+      await db.execute('DELETE FROM utilisateur WHERE id = ?', [existing[0].id]);
     }
 
     const hashedPassword = await bcrypt.hash(motDePasse, 10);
+    const { token, tokenHash, expiresAt } = createEmailVerificationToken();
     const [result] = await db.execute(
-      'INSERT INTO utilisateur (nom, prenom, email, mot_de_passe) VALUES (?, ?, ?, ?)',
-      [nom, prenom, email.trim(), hashedPassword],
+      `INSERT INTO utilisateur (
+        nom,
+        prenom,
+        email,
+        mot_de_passe,
+        email_verifie,
+        email_verification_token_hash,
+        email_verification_token_expires_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [normalizedNom, normalizedPrenom, normalizedEmail, hashedPassword, false, tokenHash, expiresAt],
     );
 
-    return res.status(201).json({ message: 'Utilisateur créé.', utilisateurId: result.insertId });
+    const verificationUrl = `${getAppBaseUrl(req)}/verify-email?token=${encodeURIComponent(token)}`;
+
+    try {
+      await sendVerificationEmail({
+        to: normalizedEmail,
+        verificationUrl,
+        prenom: normalizedPrenom,
+        nom: normalizedNom,
+      });
+    } catch (error) {
+      await db.execute('DELETE FROM utilisateur WHERE id = ?', [result.insertId]);
+      const mailError = new Error('Impossible d’envoyer l’email de vérification.');
+      mailError.statusCode = 502;
+      mailError.cause = error;
+      throw mailError;
+    }
+
+    return res.status(201).json({
+      message: 'Compte créé. Vérifiez votre email pour activer votre compte.',
+      utilisateurId: result.insertId,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/verify-email', async (req, res, next) => {
+  const token = typeof req.query.token === 'string' ? req.query.token.trim() : '';
+
+  if (!token) {
+    return res.status(400).json({ error: 'Lien de vérification invalide.' });
+  }
+
+  try {
+    const db = await getPool();
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const [rows] = await db.execute(
+      `SELECT id
+       FROM utilisateur
+       WHERE email_verifie = FALSE
+         AND email_verification_token_hash = ?
+         AND email_verification_token_expires_at IS NOT NULL
+         AND email_verification_token_expires_at >= NOW()
+       LIMIT 1`,
+      [tokenHash],
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'Le lien de vérification est invalide ou expiré.' });
+    }
+
+    await db.execute(
+      `UPDATE utilisateur
+       SET email_verifie = TRUE,
+           email_verification_token_hash = NULL,
+           email_verification_token_expires_at = NULL
+       WHERE id = ?`,
+      [rows[0].id],
+    );
+
+    return res.json({ message: 'Adresse email vérifiée. Vous pouvez maintenant vous connecter.' });
   } catch (error) {
     return next(error);
   }
@@ -119,7 +210,7 @@ router.post('/login', async (req, res, next) => {
   try {
     const db = await getPool();
     const [rows] = await db.execute(
-      'SELECT id, nom, prenom, email, mot_de_passe FROM utilisateur WHERE email = ?',
+      'SELECT id, nom, prenom, email, mot_de_passe, email_verifie FROM utilisateur WHERE email = ?',
       [email.trim()],
     );
 
@@ -132,6 +223,10 @@ router.post('/login', async (req, res, next) => {
 
     if (!passwordOk) {
       return res.status(401).json({ error: 'Identifiants invalides.' });
+    }
+
+    if (!user.email_verifie) {
+      return res.status(403).json({ error: 'Veuillez vérifier votre adresse email avant de vous connecter.' });
     }
 
     const token = issueJwt(user);

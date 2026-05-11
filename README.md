@@ -29,8 +29,17 @@
    cp .env.example .env
    ```
 2. Ajuster le mot de passe root MySQL et les identifiants applicatifs si besoin.
+3. Renseigner les variables SMTP si vous activez la vérification d’email à l’inscription.
 
 Les valeurs sont ensuite injectées dans les conteneurs via `docker-compose.yml`.
+
+Variables utiles pour la vérification d’email :
+
+- `APP_BASE_URL` : URL publique de l’application, utilisée dans le lien de confirmation.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` : configuration SMTP du fournisseur mail.
+- `SMTP_USER`, `SMTP_PASSWORD` : identifiants de la boîte d’envoi.
+- `SMTP_FROM_NAME`, `SMTP_FROM_EMAIL` : expéditeur affiché.
+- `EMAIL_VERIFICATION_TTL_MS` : durée de validité du lien de confirmation.
 
 ## Démarrer l'environnement
 
@@ -58,4 +67,5 @@ docker compose up --build
 - Le frontend Vite proxifie les appels `/api` vers le service `backend`, évitant d'ouvrir un port supplémentaire.
 - Le backend expose une route de santé `/api/health` qui vérifie la connexion MySQL.
 - Le backend expose `POST /api/login` (émission JWT), `GET /api/me` et `POST /api/logout` (routes protégées par middleware JWT).
+- Le backend expose aussi `POST /api/register` avec vérification d’email et `GET /api/verify-email?token=...` pour activer le compte.
 - Pour relancer depuis zéro la base de données, supprimez le volume Docker `projet-ibc_db_data`.

@@ -6,6 +6,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    hmr: {
+      clientPort: 80,
+      host: 'localhost',
+      protocol: 'ws',
+    },
     proxy: {
       '/api': {
         target: 'http://backend:8080',

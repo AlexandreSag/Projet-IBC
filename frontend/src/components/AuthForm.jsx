@@ -70,15 +70,14 @@ export default function AuthForm({ mode, footer }) {
 
       const data = isRegister ? await register(payload) : await login(payload);
 
-      const userLabel =
-        data.utilisateur?.prenom ||
-        data.utilisateur?.nom ||
-        data.utilisateur?.email;
-
       setMessage({
         type: 'success',
         text: data.message || (isRegister ? 'Inscription réussie.' : 'Connexion réussie.'),
-        detail: userLabel ? `Bienvenue ${userLabel}!` : null,
+        detail: !isRegister
+          ? ((data.utilisateur?.prenom || data.utilisateur?.nom || data.utilisateur?.email)
+            ? `Bienvenue ${data.utilisateur?.prenom || data.utilisateur?.nom || data.utilisateur?.email}!`
+            : null)
+          : 'Un email de confirmation vous a été envoyé.',
       });
 
       setForm((prev) => ({
