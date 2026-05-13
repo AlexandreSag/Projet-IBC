@@ -149,15 +149,20 @@ export default function DashboardPage() {
     return <DashboardPlaceholderTab />;
   };
 
+  const summaryCards = buildSummaryCards({ comptes, depenses, revenus });
+  const [mainSummaryCard, ...secondarySummaryCards] = summaryCards;
+
   return (
     <div className="dashboard-layout">
-      <DashboardTopbar subtitle="Tableau de bord financier" activeAction="dashboard" />
-
+      <DashboardTopbar
+        subtitle="Tableau de bord financier"
+        activeAction="dashboard"
+      />
       <main className="dashboard-page">
         {actionMessage && <p className={`feedback ${actionMessage.type}`}>{actionMessage.text}</p>}
 
         <section className="dashboard-metrics">
-          {buildSummaryCards({ comptes, depenses, revenus }).map((card) => (
+          {summaryCards.map((card) => (
             <article key={card.title} className="dashboard-metric-card">
               <div className="dashboard-metric-head">
                 <p>{card.title}</p>
@@ -169,6 +174,26 @@ export default function DashboardPage() {
               <small>{card.detail}</small>
             </article>
           ))}
+        </section>
+
+        <section className="dashboard-mobile-summary-card" aria-label="Résumé mobile">
+          <div className="dashboard-mobile-summary-main">
+            <p>{mainSummaryCard.title}</p>
+            <strong>{mainSummaryCard.amount}</strong>
+          </div>
+          <div className="dashboard-mobile-summary-stats">
+            {secondarySummaryCards.map((card) => (
+              <article key={card.title} className={`dashboard-mobile-summary-stat ${card.tone}`}>
+                <span className={`dashboard-mobile-summary-icon ${card.tone}`}>
+                  <i className={card.icon} aria-hidden="true" />
+                </span>
+                <div>
+                  <p>{card.title.replace(/\s*\(.+\)/, '')}</p>
+                  <strong>{card.amount}</strong>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
 
         <nav className="dashboard-tabs" aria-label="Navigation tableau de bord">
@@ -185,6 +210,20 @@ export default function DashboardPage() {
         </nav>
 
         {renderTabContent()}
+
+        <nav className="dashboard-bottom-nav" aria-label="Navigation mobile du tableau de bord">
+          {dashboardTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={activeTab === tab.id ? 'active' : ''}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <i className={tab.icon} aria-hidden="true" />
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </nav>
 
         {showAddModal && (
           <DashboardAccountModal

@@ -1,9 +1,14 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 
-export default function DashboardTopbar({ subtitle, activeAction = 'dashboard' }) {
+export default function DashboardTopbar({
+  subtitle,
+  activeAction = 'dashboard',
+}) {
   const navigate = useNavigate();
   const { user, abonnement, isPremium, logout } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const userLabel = user?.prenom || user?.nom || user?.email || 'Utilisateur';
   const userInitials = userLabel
@@ -16,6 +21,11 @@ export default function DashboardTopbar({ subtitle, activeAction = 'dashboard' }
   const handleLogout = async () => {
     await logout();
     navigate('/login', { replace: true });
+  };
+
+  const handleSettingsNavigation = () => {
+    setIsMobileMenuOpen(false);
+    navigate('/settings');
   };
 
   const abonnementLabel = abonnement?.nom || 'Gratuit';
@@ -31,6 +41,15 @@ export default function DashboardTopbar({ subtitle, activeAction = 'dashboard' }
           <p>{subtitle}</p>
         </div>
       </div>
+      <button
+        type="button"
+        className={`dashboard-burger-btn${isMobileMenuOpen ? ' active' : ''}`}
+        aria-label={isMobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+        aria-expanded={isMobileMenuOpen}
+        onClick={() => setIsMobileMenuOpen((open) => !open)}
+      >
+        <i className={`fa-solid ${isMobileMenuOpen ? 'fa-xmark' : 'fa-bars'}`} aria-hidden="true" />
+      </button>
       <div className="dashboard-top-actions">
         {isPremium ? (
           <div className="dashboard-plan-badge" title={`Plan actuel: ${abonnementLabel}`}>
@@ -49,7 +68,7 @@ export default function DashboardTopbar({ subtitle, activeAction = 'dashboard' }
           className={`dashboard-icon-btn${activeAction === 'settings' ? ' active' : ''}`}
           aria-label="Paramètres"
           title="Paramètres"
-          onClick={() => navigate('/settings')}
+          onClick={handleSettingsNavigation}
         >
           <i className="fa-solid fa-gear" aria-hidden="true" />
         </button>
@@ -69,6 +88,48 @@ export default function DashboardTopbar({ subtitle, activeAction = 'dashboard' }
             title="Se déconnecter"
           >
             <i className="fa-solid fa-right-from-bracket" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      <div className={`dashboard-mobile-menu${isMobileMenuOpen ? ' open' : ''}`}>
+        <div className="dashboard-mobile-menu-profile">
+          <div
+            className="dashboard-avatar-btn"
+            aria-label={userLabel ? `Profil de ${userLabel}` : 'Profil utilisateur'}
+            title={userLabel}
+          >
+            {userInitials || 'JD'}
+          </div>
+          <div className="dashboard-mobile-menu-profile-copy">
+            <strong>{userLabel}</strong>
+            <span>{isPremium ? `Plan ${abonnementLabel}` : 'Plan Gratuit'}</span>
+          </div>
+        </div>
+
+        <div className="dashboard-mobile-menu-section">
+          {isPremium ? (
+            <div className="dashboard-plan-badge" title={`Plan actuel: ${abonnementLabel}`}>
+              Plan {abonnementLabel}
+            </div>
+          ) : (
+            <button type="button" className="btn primary dashboard-premium-btn">
+              Passer à Premium
+            </button>
+          )}
+        </div>
+
+        <div className="dashboard-mobile-menu-actions">
+          <button
+            type="button"
+            className={`dashboard-mobile-action-btn${activeAction === 'settings' ? ' active' : ''}`}
+            onClick={handleSettingsNavigation}
+          >
+            <i className="fa-solid fa-gear" aria-hidden="true" />
+            Paramètres
+          </button>
+          <button type="button" className="dashboard-mobile-action-btn" onClick={handleLogout}>
+            <i className="fa-solid fa-right-from-bracket" aria-hidden="true" />
+            Déconnexion
           </button>
         </div>
       </div>

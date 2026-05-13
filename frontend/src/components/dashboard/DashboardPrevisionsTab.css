@@ -13,6 +13,7 @@
   flex-direction: column;
   gap: 0.35rem;
   min-width: 190px;
+  max-width: 100%;
 }
 
 .prevision-controls label {
@@ -39,6 +40,7 @@
   border-radius: 14px;
   background: linear-gradient(135deg, rgba(15, 183, 182, 0.12), rgba(0, 153, 196, 0.12));
   border: 1px solid rgba(0, 153, 196, 0.16);
+  min-width: 0;
 }
 
 .prevision-target-banner span {
@@ -49,6 +51,7 @@
 
 .prevision-target-banner strong {
   font-size: 1rem;
+  text-align: right;
 }
 
 .prevision-loading,
@@ -63,7 +66,7 @@
 
 .prevision-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 0.9rem;
 }
 
@@ -103,15 +106,18 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  min-width: 0;
 }
 
 .prevision-account-cell strong {
   font-size: 0.98rem;
+  overflow-wrap: anywhere;
 }
 
 .prevision-account-cell span {
   color: var(--couleur-texte-3);
   font-size: 0.88rem;
+  overflow-wrap: anywhere;
 }
 
 .prevision-status {
@@ -158,7 +164,7 @@
 
 .prevision-account-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 0.9rem;
 }
 
@@ -167,6 +173,7 @@
   border-radius: 16px;
   background: linear-gradient(180deg, #fcfeff 0%, #f7fbfd 100%);
   padding: 1rem;
+  min-width: 0;
 }
 
 .prevision-account-card-head {
@@ -175,11 +182,13 @@
   gap: 1rem;
   align-items: flex-start;
   margin-bottom: 0.95rem;
+  min-width: 0;
 }
 
 .prevision-account-card-head h3 {
   margin: 0;
   font-size: 1rem;
+  overflow-wrap: anywhere;
 }
 
 .prevision-account-card-head p {
@@ -204,6 +213,7 @@
   border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.88);
+  min-width: 0;
 }
 
 .prevision-breakdown dt {
@@ -216,6 +226,7 @@
   margin: 0;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .prevision-breakdown dd.positive {
@@ -228,12 +239,6 @@
 
 .prevision-breakdown dd.info {
   color: #0f766e;
-}
-
-@media (max-width: 960px) {
-  .prevision-summary-grid {
-    grid-template-columns: repeat(2, minmax(220px, 1fr));
-  }
 }
 
 @media (max-width: 720px) {
@@ -252,8 +257,98 @@
     width: 100%;
   }
 
-  .prevision-summary-grid,
+  .prevision-target-banner strong {
+    text-align: left;
+  }
+
   .prevision-breakdown {
     grid-template-columns: 1fr;
+  }
+
+  .prevision-table-wrapper {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .prevision-table,
+  .prevision-table thead,
+  .prevision-table tbody,
+  .prevision-table tr,
+  .prevision-table th,
+  .prevision-table td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .prevision-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    background: transparent;
+  }
+
+  .prevision-table thead {
+    display: none;
+  }
+
+  .prevision-table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .prevision-table tbody tr {
+    border: 1px solid var(--couleur-bordure);
+    border-radius: 12px;
+    background: #fcfdff;
+    padding: 0.82rem;
+  }
+
+  .prevision-table th,
+  .prevision-table td {
+    border-bottom: none;
+    padding: 0;
+    text-align: right;
+  }
+
+  .prevision-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .prevision-table td + td {
+    margin-top: 0.65rem;
+  }
+
+  .prevision-table td::before {
+    content: attr(data-label);
+    color: var(--couleur-texte-3);
+    font-weight: 700;
+    text-align: left;
+    flex: 0 0 38%;
+  }
+
+  .prevision-account-cell {
+    align-items: flex-end;
+    text-align: right;
+  }
+}
+
+@media (max-width: 420px) {
+  .prevision-table td {
+    flex-direction: column;
+    gap: 0.2rem;
+    text-align: left;
+  }
+
+  .prevision-table td::before {
+    flex-basis: auto;
+  }
+
+  .prevision-account-cell {
+    align-items: flex-start;
+    text-align: left;
   }
 }

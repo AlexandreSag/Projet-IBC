@@ -128,28 +128,28 @@ export default function DashboardPrevisionsTab() {
                 <tbody>
                   {prevision.comptes.map((compte) => (
                     <tr key={compte.id}>
-                      <td>
+                      <td data-label="Compte">
                         <div className="prevision-account-cell">
                           <strong>{compte.nom_court}</strong>
                           <span>{compte.description || 'Compte financier'}</span>
                         </div>
                       </td>
-                      <td>{formatDateForDisplay(compte.date_creation)}</td>
-                      <td>
+                      <td data-label="Ouverture">{formatDateForDisplay(compte.date_creation)}</td>
+                      <td data-label="Statut">
                         <span className={`prevision-status ${compte.status}`}>
                           {buildStatusLabel(compte.status)}
                         </span>
                       </td>
-                      <td className="prevision-amount strong">
+                      <td data-label="Solde projeté" className="prevision-amount strong">
                         {euroFormatter.format(compte.solde_previsionnel || 0)}
                       </td>
-                      <td className="prevision-amount positive">
+                      <td data-label="Revenus" className="prevision-amount positive">
                         {euroFormatter.format(compte.revenus_total || 0)}
                       </td>
-                      <td className="prevision-amount negative">
+                      <td data-label="Dépenses" className="prevision-amount negative">
                         {euroFormatter.format(compte.depenses_total || 0)}
                       </td>
-                      <td className="prevision-amount info">
+                      <td data-label="Intérêts nets" className="prevision-amount info">
                         {euroFormatter.format(compte.interets_total || 0)}
                       </td>
                     </tr>

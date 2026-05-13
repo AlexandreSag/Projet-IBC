@@ -360,13 +360,13 @@ export default function DashboardTransactionManagerModal({
                 )}
                 {items.map((item) => (
                   <tr key={item.id}>
-                    <td>{item.nom || item.nom_court}</td>
-                    <td>{formatDateForDisplay(item.date_debut)}</td>
-                    <td>{item.compte_nom_court || '-'}</td>
-                    <td className={amountCellClass}>
+                    <td data-label={itemLabelCapitalized}>{item.nom || item.nom_court}</td>
+                    <td data-label="Date">{formatDateForDisplay(item.date_debut)}</td>
+                    <td data-label="Compte">{item.compte_nom_court || '-'}</td>
+                    <td data-label="Montant" className={amountCellClass}>
                       {amountSign}{euroFormatter.format(Math.abs(Number(item.montant || 0)))}
                     </td>
-                    <td>
+                    <td data-label="Actions">
                       <div className="dashboard-transaction-inline-actions">
                         <button
                           type="button"

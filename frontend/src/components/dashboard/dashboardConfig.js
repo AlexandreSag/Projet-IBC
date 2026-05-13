@@ -13,11 +13,11 @@ export const monthlyData = [
 export const chartMax = 3600;
 
 export const dashboardTabs = [
-  { id: 'overview', label: 'Vue d\'ensemble' },
-  { id: 'transactions', label: 'Transactions' },
-  { id: 'previsions', label: 'Prévisions' },
-  { id: 'exceptions', label: 'Exceptions' },
-  { id: 'sharing', label: 'Partage' },
+  { id: 'overview', label: 'Vue d\'ensemble', icon: 'fa-solid fa-house' },
+  { id: 'transactions', label: 'Transactions', icon: 'fa-solid fa-wallet' },
+  { id: 'previsions', label: 'Prévisions', icon: 'fa-solid fa-chart-line' },
+  { id: 'exceptions', label: 'Exceptions', icon: 'fa-solid fa-triangle-exclamation' },
+  { id: 'sharing', label: 'Partage', icon: 'fa-solid fa-share-nodes' },
 ];
 
 export const accountPresets = [

@@ -71,8 +71,8 @@ export default function DashboardTransactionsList({
               const isCredit = transaction.nature === 'credit';
               return (
                 <tr key={transaction.id}>
-                  <td>{formatDateForDisplay(transaction.date)}</td>
-                  <td>
+                  <td data-label="Date">{formatDateForDisplay(transaction.date)}</td>
+                  <td data-label="Description">
                     <div className="dashboard-transaction-description">
                       <span className="dashboard-transaction-icon">
                         <i className={transaction.iconClass} aria-hidden="true" />
@@ -83,15 +83,15 @@ export default function DashboardTransactionsList({
                       </span>
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Type">
                     <span className={`dashboard-transaction-type ${transaction.nature}`}>
                       {transaction.typeLabel}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Compte">
                     <span className="dashboard-transaction-category">{transaction.compteNom}</span>
                   </td>
-                  <td className={isCredit ? 'positive' : 'negative'}>
+                  <td data-label="Montant" className={isCredit ? 'positive' : 'negative'}>
                     {isCredit ? '+' : '-'}{euroFormatter.format(Math.abs(transaction.montant))}
                   </td>
                 </tr>

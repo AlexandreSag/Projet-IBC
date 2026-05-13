@@ -39,7 +39,7 @@ export default function DashboardOverviewTab({
                   </div>
                 </div>
                 <div className="dashboard-account-right">
-                  <strong>{euroFormatter.format(compte.solde)}</strong>
+                  <strong className="dashboard-account-balance">{euroFormatter.format(compte.solde)}</strong>
                   <div className="dashboard-account-actions">
                     <button
                       type="button"
