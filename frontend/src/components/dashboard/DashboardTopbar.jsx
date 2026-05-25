@@ -28,6 +28,11 @@ export default function DashboardTopbar({
     navigate('/settings');
   };
 
+  const handleSubscriptionNavigation = () => {
+    setIsMobileMenuOpen(false);
+    navigate('/subscription');
+  };
+
   const abonnementLabel = abonnement?.nom || 'Gratuit';
 
   return (
@@ -56,7 +61,11 @@ export default function DashboardTopbar({
             Plan {abonnementLabel}
           </div>
         ) : (
-          <button type="button" className="btn primary dashboard-premium-btn">
+          <button
+            type="button"
+            className="btn primary dashboard-premium-btn"
+            onClick={handleSubscriptionNavigation}
+          >
             Passer à Premium
           </button>
         )}
@@ -112,7 +121,11 @@ export default function DashboardTopbar({
               Plan {abonnementLabel}
             </div>
           ) : (
-            <button type="button" className="btn primary dashboard-premium-btn">
+            <button
+              type="button"
+              className="btn primary dashboard-premium-btn"
+              onClick={handleSubscriptionNavigation}
+            >
               Passer à Premium
             </button>
           )}

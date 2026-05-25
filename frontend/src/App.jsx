@@ -13,6 +13,7 @@ import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
 import DashboardPage from './components/DashboardPage.jsx';
 import SettingsPage from './components/SettingsPage.jsx';
+import SubscriptionPage from './components/SubscriptionPage.jsx';
 import { AuthProvider, requestJson, useAuth } from './context/AuthContext.jsx';
 
 const verificationRequests = new Map();
@@ -260,10 +261,11 @@ function AppShell() {
     location.pathname === '/verify-email';
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
   const isSettingsRoute = location.pathname.startsWith('/settings');
+  const isSubscriptionRoute = location.pathname.startsWith('/subscription');
 
   return (
     <>
-      {!isAuthRoute && !isDashboardRoute && !isSettingsRoute && <Header />}
+      {!isAuthRoute && !isDashboardRoute && !isSettingsRoute && !isSubscriptionRoute && <Header />}
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<AuthPage mode="login" />} />
@@ -282,6 +284,14 @@ function AppShell() {
           element={
             <ProtectedRoute>
               <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/subscription"
+          element={
+            <ProtectedRoute>
+              <SubscriptionPage />
             </ProtectedRoute>
           }
         />

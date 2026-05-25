@@ -443,6 +443,57 @@ main.landing {
   gap: 0.5rem;
 }
 
+.page-shell {
+  width: min(var(--page-shell-width, 1160px), calc(100% - var(--page-shell-gutter, 2rem)));
+  margin: var(--page-shell-margin-top, 1.5rem) auto 0;
+  padding-bottom: var(--page-shell-padding-bottom, 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--page-shell-gap, 1rem);
+  min-width: 0;
+}
+
+.page-grid-2,
+.page-grid-3,
+.info-card-grid {
+  display: grid;
+  min-width: 0;
+}
+
+.page-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--page-grid-gap, 1rem);
+}
+
+.page-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--page-grid-gap, 1rem);
+}
+
+.info-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: var(--info-card-grid-gap, 0.85rem);
+}
+
+.info-card {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 14px;
+  background: var(--couleur-surface-claire);
+  padding: 1rem;
+  min-width: 0;
+}
+
+.info-card strong {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.info-card p {
+  margin: 0;
+  color: var(--couleur-texte-2);
+  overflow-wrap: anywhere;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
@@ -713,6 +764,12 @@ button:disabled {
     padding: 1rem;
   }
 
+  .page-shell {
+    width: min(100%, calc(100% - var(--page-shell-mobile-gutter, 1rem)));
+    margin-top: var(--page-shell-mobile-margin-top, 0.75rem);
+    gap: var(--page-shell-mobile-gap, 0.85rem);
+  }
+
   .site-footer {
     width: min(1200px, calc(100% - 1.5rem));
     grid-template-columns: 1fr;
@@ -744,5 +801,16 @@ button:disabled {
   .cta-row .btn,
   .nav-actions .btn {
     width: 100%;
+  }
+
+  .page-shell {
+    width: min(100%, calc(100% - var(--page-shell-mobile-gutter-tight, 0.75rem)));
+  }
+}
+
+@media (max-width: 900px) {
+  .page-grid-2,
+  .page-grid-3 {
+    grid-template-columns: 1fr;
   }
 }

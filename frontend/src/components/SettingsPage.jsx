@@ -165,7 +165,7 @@ export default function SettingsPage() {
     <div className="dashboard-layout">
       <DashboardTopbar subtitle="Paramètres du compte" activeAction="settings" />
 
-      <main className="settings-page">
+      <main className="settings-page page-shell">
         <section className="settings-hero dashboard-panel">
           <div>
             <span className="pill">Compte</span>
@@ -179,7 +179,7 @@ export default function SettingsPage() {
           </Link>
         </section>
 
-        <section className="settings-grid">
+        <section className="settings-grid page-grid-2">
           <article className="dashboard-panel settings-card settings-card-wide">
             <div className="dashboard-panel-header settings-card-header">
               <div>
@@ -214,12 +214,12 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="settings-quota-grid">
-                  <article className="settings-quota-card">
+                <div className="settings-quota-grid info-card-grid">
+                  <article className="settings-quota-card info-card">
                     <strong>Comptes</strong>
                     <p>{formatUsage(abonnementStatus?.usage?.comptes)}</p>
                   </article>
-                  <article className="settings-quota-card">
+                  <article className="settings-quota-card info-card">
                     <strong>Dépenses par compte</strong>
                     <p>
                       {statusAbonnement?.limits?.depensesParCompte === null
@@ -227,7 +227,7 @@ export default function SettingsPage() {
                         : `${statusAbonnement?.limits?.depensesParCompte ?? '-'} maximum`}
                     </p>
                   </article>
-                  <article className="settings-quota-card">
+                  <article className="settings-quota-card info-card">
                     <strong>Revenus par compte</strong>
                     <p>
                       {statusAbonnement?.limits?.revenusParCompte === null
@@ -241,7 +241,7 @@ export default function SettingsPage() {
                   <h3>Usage par compte</h3>
                   {abonnementStatus?.usage?.comptesDetails?.length ? (
                     abonnementStatus.usage.comptesDetails.map((compte) => (
-                      <article key={compte.id} className="settings-account-quota-item">
+                      <article key={compte.id} className="settings-account-quota-item info-card">
                         <div>
                           <strong>{compte.nom_court}</strong>
                         </div>

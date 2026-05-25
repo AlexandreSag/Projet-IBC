@@ -1,11 +1,10 @@
 .settings-page {
-  width: min(1120px, calc(100% - 2rem));
-  margin: 1.6rem auto 0;
-  padding-bottom: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-  min-width: 0;
+  --page-shell-width: 1120px;
+  --page-shell-margin-top: 1.6rem;
+  --page-shell-padding-bottom: 2rem;
+  --page-shell-gap: 1.1rem;
+  --page-shell-mobile-margin-top: 0.75rem;
+  --page-shell-mobile-gap: 0.85rem;
 }
 
 .settings-hero {
@@ -33,10 +32,7 @@
 }
 
 .settings-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  min-width: 0;
+  --page-grid-gap: 1rem;
 }
 
 .settings-card-wide {
@@ -108,31 +104,7 @@
 }
 
 .settings-quota-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
-  gap: 0.85rem;
-}
-
-.settings-quota-card,
-.settings-account-quota-item {
-  border: 1px solid var(--couleur-bordure);
-  border-radius: 14px;
-  background: var(--couleur-surface-claire);
-  padding: 1rem;
-  min-width: 0;
-}
-
-.settings-quota-card strong,
-.settings-account-quota-item strong {
-  display: block;
-  margin-bottom: 0.4rem;
-}
-
-.settings-quota-card p,
-.settings-account-quota-item p {
-  margin: 0;
-  color: var(--couleur-texte-2);
-  overflow-wrap: anywhere;
+  --info-card-grid-gap: 0.85rem;
 }
 
 .settings-account-quota-list {
@@ -142,10 +114,6 @@
 }
 
 @media (max-width: 900px) {
-  .settings-grid {
-    grid-template-columns: 1fr;
-  }
-
   .settings-hero {
     flex-direction: column;
     align-items: flex-start;
@@ -158,12 +126,6 @@
 }
 
 @media (max-width: 640px) {
-  .settings-page {
-    width: min(100%, calc(100% - 1rem));
-    margin-top: 0.75rem;
-    gap: 0.85rem;
-  }
-
   .settings-hero,
   .settings-card {
     padding: 0.95rem;
