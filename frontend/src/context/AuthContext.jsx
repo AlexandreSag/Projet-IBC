@@ -77,6 +77,23 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
+  const upgradeToPremiumTest = useCallback(async () => {
+    const data = await requestJson('/api/me/abonnement/upgrade-test', {
+      method: 'POST',
+    });
+    setUser(data?.utilisateur || null);
+    return data;
+  }, []);
+
+  const downgradeToFreeTest = useCallback(async (selection = {}) => {
+    const data = await requestJson('/api/me/abonnement/downgrade-test', {
+      method: 'POST',
+      body: JSON.stringify(selection),
+    });
+    setUser(data?.utilisateur || null);
+    return data;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await requestJson('/api/logout', { method: 'POST' });
@@ -98,9 +115,22 @@ export function AuthProvider({ children }) {
       register,
       updateProfile,
       changePassword,
+      upgradeToPremiumTest,
+      downgradeToFreeTest,
       logout,
     }),
-    [changePassword, isLoading, login, logout, refreshSession, register, updateProfile, user],
+    [
+      changePassword,
+      downgradeToFreeTest,
+      isLoading,
+      login,
+      logout,
+      refreshSession,
+      register,
+      updateProfile,
+      upgradeToPremiumTest,
+      user,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -264,6 +264,67 @@ router.get('/me/abonnement-status', async (req, res, next) => {
   }
 });
 
+router.post('/me/abonnement/upgrade-test', async (req, res, next) => {
+  try {
+    await abonnementService.assignPlanToUser(req.auth.sub, abonnementService.PLAN_CODES.PREMIUM);
+
+    const sessionUser = await getSessionUserById(req.auth.sub);
+    if (!sessionUser) {
+      clearAuthCookie(res);
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    const token = issueJwt(sessionUser);
+    res.cookie(JWT_COOKIE_NAME, token, getCookieOptions());
+
+    return res.json({
+      message: 'Le plan Premium de test a été activé.',
+      utilisateur: sessionUser,
+      token,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/me/abonnement/downgrade-preview', async (req, res, next) => {
+  try {
+    const preview = await abonnementService.getUserDowngradePreview(req.auth.sub);
+    return res.json(preview);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/me/abonnement/downgrade-test', async (req, res, next) => {
+  try {
+    await abonnementService.downgradeUserToFreeWithSelection(req.auth.sub, req.body || {});
+
+    const sessionUser = await getSessionUserById(req.auth.sub);
+    if (!sessionUser) {
+      clearAuthCookie(res);
+      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    }
+
+    const token = issueJwt(sessionUser);
+    res.cookie(JWT_COOKIE_NAME, token, getCookieOptions());
+
+    return res.json({
+      message: 'Le retour au plan gratuit de test a été appliqué.',
+      utilisateur: sessionUser,
+      token,
+    });
+  } catch (error) {
+    if (error.statusCode && error.details) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        ...error.details,
+      });
+    }
+    return next(error);
+  }
+});
+
 router.put('/me', async (req, res, next) => {
   const { nom = null, prenom = null, email } = req.body || {};
 
