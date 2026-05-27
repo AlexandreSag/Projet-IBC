@@ -198,6 +198,41 @@ function buildMonthlyTimeline(compte, targetDate, occurrences) {
     currentMonthEnd = getMonthEnd(nextMonthStart);
   }
 
+  const lastSnapshotDate = monthlySnapshots.length > 0
+    ? parseDateValue(monthlySnapshots[monthlySnapshots.length - 1].date)
+    : null;
+
+  if (!lastSnapshotDate || lastSnapshotDate < targetDate) {
+    let revenusPeriode = 0;
+    let depensesPeriode = 0;
+
+    while (
+      occurrenceIndex < occurrences.length
+      && occurrences[occurrenceIndex].date <= targetDate
+    ) {
+      const occurrence = occurrences[occurrenceIndex];
+      if (occurrence.type === 'revenu') {
+        balance = roundCurrency(balance + occurrence.amount);
+        revenusTotal = roundCurrency(revenusTotal + occurrence.amount);
+        revenusPeriode = roundCurrency(revenusPeriode + occurrence.amount);
+      } else {
+        balance = roundCurrency(balance - occurrence.amount);
+        depensesTotal = roundCurrency(depensesTotal + occurrence.amount);
+        depensesPeriode = roundCurrency(depensesPeriode + occurrence.amount);
+      }
+      occurrenceIndex += 1;
+    }
+
+    monthlySnapshots.push({
+      month: `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`,
+      date: toIsoDate(targetDate),
+      balance,
+      revenus: revenusPeriode,
+      depenses: depensesPeriode,
+      interets: 0,
+    });
+  }
+
   return {
     balance,
     revenusTotal,

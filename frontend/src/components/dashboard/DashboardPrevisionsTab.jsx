@@ -77,9 +77,13 @@ export default function DashboardPrevisionsTab() {
             <label htmlFor="prevision-month">Mois cible</label>
             <input
               id="prevision-month"
-              type="month"
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
+              type="date"
+              value={`${selectedMonth}-01`}
+              onChange={(event) => {
+                if (event.target.value) {
+                  setSelectedMonth(event.target.value.substring(0, 7));
+                }
+              }}
             />
           </div>
         </div>
