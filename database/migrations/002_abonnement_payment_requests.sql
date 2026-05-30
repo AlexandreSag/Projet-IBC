@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS abonnement_paiement (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  utilisateur_id BIGINT UNSIGNED NOT NULL,
+  abonnement_id BIGINT UNSIGNED NOT NULL,
+  plan_code VARCHAR(30) NOT NULL,
+  montant_eur DECIMAL(10,2) NOT NULL,
+  crypto_code VARCHAR(10) NOT NULL,
+  montant_crypto DECIMAL(18,8) NOT NULL,
+  network VARCHAR(30) NOT NULL,
+  wallet_address VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  transaction_hash VARCHAR(255) NULL,
+  expires_at DATETIME NULL,
+  confirmed_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_abonnement_paiement_utilisateur FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id),
+  CONSTRAINT fk_abonnement_paiement_abonnement FOREIGN KEY (abonnement_id) REFERENCES abonnement(id),
+  CONSTRAINT chk_abonnement_paiement_montant_eur CHECK (montant_eur >= 0),
+  CONSTRAINT chk_abonnement_paiement_montant_crypto CHECK (montant_crypto >= 0)
+);

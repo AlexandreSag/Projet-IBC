@@ -1,9 +1,7 @@
 const { getPool } = require('../config/database');
-
-const PLAN_CODES = {
-  FREE: 'free',
-  PREMIUM: 'premium',
-};
+const subscriptionLifecycleService = require('./subscriptionLifecycleService');
+const subscriptionRenewalService = require('./subscriptionRenewalService');
+const { PLAN_CODES } = require('./subscriptionConstants');
 
 const QUOTA_RESOURCES = {
   COMPTES: 'comptes',
@@ -20,12 +18,12 @@ function normalizeLimit(value) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
-function formatAbonnement(row) {
+function formatAbonnement(row, renewal = null) {
   if (!row) {
     return null;
   }
 
-  return {
+  const abonnement = {
     id: row.id,
     code: row.code,
     nom: row.nom,
@@ -36,17 +34,93 @@ function formatAbonnement(row) {
     actif: Boolean(row.actif),
     isFree: row.code === PLAN_CODES.FREE,
     isPremium: row.code === PLAN_CODES.PREMIUM,
+    expiresAt: row.premium_expires_at || null,
+    cancelAtPeriodEnd: Boolean(row.premium_cancel_at_period_end),
+    cleanupRequired: Boolean(row.quota_cleanup_required),
     limits: {
       comptes: normalizeLimit(row.max_comptes),
       depensesParCompte: normalizeLimit(row.max_depenses_par_compte),
       revenusParCompte: normalizeLimit(row.max_revenus_par_compte),
     },
   };
+
+  return {
+    ...abonnement,
+    state: subscriptionLifecycleService.deriveSubscriptionState(abonnement),
+    renewal: renewal || null,
+  };
+}
+
+async function getUserPlanRow(userId) {
+  const db = await getPool();
+  const [rows] = await db.execute(
+    `SELECT
+      u.abonnement_id,
+      u.premium_expires_at,
+      u.premium_cancel_at_period_end,
+      u.quota_cleanup_required,
+      a.code
+     FROM utilisateur u
+     INNER JOIN abonnement a ON a.id = u.abonnement_id
+     WHERE u.id = ?
+     LIMIT 1`,
+    [userId],
+  );
+
+  return rows[0] || null;
+}
+
+async function syncUserPlanState(userId) {
+  const db = await getPool();
+  const freePlan = await getAbonnementByCode(PLAN_CODES.FREE);
+  const row = await getUserPlanRow(userId);
+  if (!row) {
+    return;
+  }
+
+  if (row.code !== PLAN_CODES.PREMIUM) {
+    if (row.premium_expires_at) {
+      await db.execute(
+        'UPDATE utilisateur SET premium_expires_at = NULL, premium_cancel_at_period_end = FALSE WHERE id = ?',
+        [userId],
+      );
+    }
+    return;
+  }
+
+  if (!row.premium_expires_at) {
+    const inferredExpiry = await subscriptionLifecycleService.inferPremiumExpiryFromLatestPayment(userId, db);
+    if (!inferredExpiry) {
+      return;
+    }
+
+    await db.execute(
+      'UPDATE utilisateur SET premium_expires_at = ?, premium_cancel_at_period_end = FALSE WHERE id = ?',
+      [inferredExpiry, userId],
+    );
+
+    if (inferredExpiry.getTime() <= Date.now()) {
+      await subscriptionLifecycleService.applyFreePlanState(userId, freePlan.id, { executor: db });
+    }
+    return;
+  }
+
+  if (new Date(row.premium_expires_at).getTime() <= Date.now()) {
+    const accounts = await getUserQuotaCleanupData(userId);
+    const projectedState = buildProjectedState(accounts, freePlan, null);
+    const cleanupRequired = !isProjectedStateWithinLimits(projectedState);
+    await subscriptionLifecycleService.applyFreePlanState(userId, freePlan.id, {
+      cleanupRequired,
+      executor: db,
+    });
+  }
 }
 
 async function getUserAbonnement(userId) {
+  await syncUserPlanState(userId);
   const db = await getPool();
-  const [rows] = await db.execute(
+  const [rows, renewal] = await Promise.all([
+    db.execute(
     `SELECT
       a.id,
       a.code,
@@ -58,14 +132,19 @@ async function getUserAbonnement(userId) {
       a.max_comptes,
       a.max_depenses_par_compte,
       a.max_revenus_par_compte,
-      a.actif
+      a.actif,
+      u.premium_expires_at,
+      u.premium_cancel_at_period_end,
+      u.quota_cleanup_required
      FROM utilisateur u
      INNER JOIN abonnement a ON a.id = u.abonnement_id
      WHERE u.id = ?`,
     [userId],
-  );
+    ),
+    subscriptionRenewalService.getRenewalSettingsForUser(userId, db),
+  ]);
 
-  return formatAbonnement(rows[0]);
+  return formatAbonnement(rows[0][0], renewal);
 }
 
 async function getAbonnementByCode(code) {
@@ -102,7 +181,17 @@ async function assignPlanToUser(userId, planCode) {
     throw error;
   }
 
-  await db.execute('UPDATE utilisateur SET abonnement_id = ? WHERE id = ?', [plan.id, userId]);
+  if (plan.code === PLAN_CODES.PREMIUM) {
+    await db.execute(
+      `UPDATE utilisateur
+       SET abonnement_id = ?,
+           quota_cleanup_required = FALSE
+       WHERE id = ?`,
+      [plan.id, userId],
+    );
+  } else {
+    await subscriptionLifecycleService.applyFreePlanState(userId, plan.id, { executor: db });
+  }
   return plan;
 }
 
@@ -373,6 +462,30 @@ async function getUserDowngradePreview(userId) {
     getUserQuotaCleanupData(userId),
   ]);
 
+  const hasActivePremiumPeriod = currentPlan?.isPremium
+    && currentPlan?.expiresAt
+    && new Date(currentPlan.expiresAt).getTime() > Date.now();
+
+  if (hasActivePremiumPeriod) {
+    return {
+      currentPlan,
+      targetPlan,
+      scheduledOnly: true,
+      effectiveAt: currentPlan.expiresAt,
+      cancellationAlreadyScheduled: currentPlan.cancelAtPeriodEnd,
+      cleanupRequired: false,
+      accounts: [],
+      overages: null,
+      recommendedSelection: {
+        accountIds: [],
+        depenseIds: [],
+        revenuIds: [],
+      },
+      projectedAfterRecommendedSelection: null,
+      canDowngradeWithoutDeletion: true,
+    };
+  }
+
   const recommendedSelection = buildRecommendation(accounts, targetPlan);
   const currentProjection = buildProjectedState(accounts, targetPlan, null);
   const recommendedProjection = buildProjectedState(accounts, targetPlan, recommendedSelection);
@@ -380,6 +493,7 @@ async function getUserDowngradePreview(userId) {
   return {
     currentPlan,
     targetPlan,
+    cleanupRequired: currentPlan?.cleanupRequired || false,
     accounts: accounts.map((account) => ({
       ...account,
       depensesCount: account.depenses.length,
@@ -395,6 +509,16 @@ async function getUserDowngradePreview(userId) {
 async function downgradeUserToFreeWithSelection(userId, selection) {
   const db = await getPool();
   const preview = await getUserDowngradePreview(userId);
+
+  if (preview.scheduledOnly) {
+    await subscriptionLifecycleService.scheduleCancellationAtPeriodEnd(userId, db);
+    return {
+      plan: preview.currentPlan,
+      scheduledOnly: true,
+      effectiveAt: preview.effectiveAt,
+    };
+  }
+
   const normalizedSelection = normalizeSelection(selection);
   const projectedState = buildProjectedState(preview.accounts, preview.targetPlan, normalizedSelection);
 
@@ -442,13 +566,9 @@ async function downgradeUserToFreeWithSelection(userId, selection) {
       await connection.query('DELETE FROM compte WHERE id IN (?) AND utilisateur_id = ?', [normalizedSelection.accountIds, userId]);
     }
 
-    await connection.query(
-      `UPDATE utilisateur u
-       INNER JOIN abonnement a ON a.code = ? AND a.actif = TRUE
-       SET u.abonnement_id = a.id
-       WHERE u.id = ?`,
-      [PLAN_CODES.FREE, userId],
-    );
+    await subscriptionLifecycleService.applyFreePlanState(userId, preview.targetPlan.id, {
+      executor: connection,
+    });
 
     await connection.commit();
     return preview.targetPlan;

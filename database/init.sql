@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS utilisateur (
   email_verifie BOOLEAN NOT NULL DEFAULT TRUE,
   email_verification_token_hash CHAR(64) NULL,
   email_verification_token_expires_at DATETIME NULL,
+  premium_expires_at DATETIME NULL,
+  premium_cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+  quota_cleanup_required BOOLEAN NOT NULL DEFAULT FALSE,
   date_inscription TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   abonnement_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
   CONSTRAINT fk_utilisateur_abonnement FOREIGN KEY (abonnement_id) REFERENCES abonnement(id)
@@ -102,4 +105,48 @@ CREATE TABLE IF NOT EXISTS partage (
   date_partage TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_partage_compte FOREIGN KEY (compte_id) REFERENCES compte(id),
   CONSTRAINT fk_partage_utilisateur FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id)
+);
+
+CREATE TABLE IF NOT EXISTS abonnement_paiement (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  utilisateur_id BIGINT UNSIGNED NOT NULL,
+  abonnement_id BIGINT UNSIGNED NOT NULL,
+  plan_code VARCHAR(30) NOT NULL,
+  montant_eur DECIMAL(10,2) NOT NULL,
+  crypto_code VARCHAR(10) NOT NULL,
+  montant_crypto DECIMAL(18,8) NOT NULL,
+  network VARCHAR(30) NOT NULL,
+  wallet_address VARCHAR(255) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  transaction_hash VARCHAR(255) NULL,
+  expires_at DATETIME NULL,
+  confirmed_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_abonnement_paiement_utilisateur FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id),
+  CONSTRAINT fk_abonnement_paiement_abonnement FOREIGN KEY (abonnement_id) REFERENCES abonnement(id),
+  CONSTRAINT chk_abonnement_paiement_montant_eur CHECK (montant_eur >= 0),
+  CONSTRAINT chk_abonnement_paiement_montant_crypto CHECK (montant_crypto >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS abonnement_renouvellement (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  utilisateur_id BIGINT UNSIGNED NOT NULL UNIQUE,
+  provider VARCHAR(30) NOT NULL DEFAULT 'ethereum_wallet',
+  mode VARCHAR(20) NOT NULL DEFAULT 'manual',
+  status VARCHAR(20) NOT NULL DEFAULT 'disabled',
+  wallet_address VARCHAR(255) NULL,
+  chain_id BIGINT UNSIGNED NULL,
+  network VARCHAR(30) NULL,
+  smart_contract_address VARCHAR(255) NULL,
+  mandate_reference VARCHAR(255) NULL,
+  next_renewal_at DATETIME NULL,
+  last_renewal_attempt_at DATETIME NULL,
+  last_payment_id BIGINT UNSIGNED NULL,
+  last_transaction_hash VARCHAR(255) NULL,
+  failure_reason VARCHAR(255) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_abonnement_renouvellement_utilisateur FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id),
+  CONSTRAINT fk_abonnement_renouvellement_last_payment FOREIGN KEY (last_payment_id) REFERENCES abonnement_paiement(id)
 );

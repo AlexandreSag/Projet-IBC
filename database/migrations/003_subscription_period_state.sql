@@ -1,0 +1,3 @@
+ALTER TABLE utilisateur
+  ADD COLUMN IF NOT EXISTS premium_expires_at DATETIME NULL,
+  ADD COLUMN IF NOT EXISTS premium_cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE;

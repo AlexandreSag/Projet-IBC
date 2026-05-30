@@ -1,0 +1,2 @@
+ALTER TABLE utilisateur
+  ADD COLUMN IF NOT EXISTS quota_cleanup_required BOOLEAN NOT NULL DEFAULT FALSE;

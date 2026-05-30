@@ -5,6 +5,8 @@ const jwt = require('jsonwebtoken');
 const { getPool } = require('../config/database');
 const { authMiddleware } = require('../middleware/authMiddleware');
 const abonnementService = require('../services/abonnementService');
+const abonnementPaymentService = require('../services/abonnementPaymentService');
+const subscriptionRenewalService = require('../services/subscriptionRenewalService');
 const { sendVerificationEmail } = require('../services/emailService');
 
 const router = express.Router();
@@ -77,6 +79,23 @@ async function getSessionUserById(userId) {
     ...rows[0],
     abonnement,
   };
+}
+
+async function refreshSessionResponse(res, userId, payload = {}) {
+  const sessionUser = await getSessionUserById(userId);
+  if (!sessionUser) {
+    clearAuthCookie(res);
+    return res.status(404).json({ error: 'Utilisateur introuvable.' });
+  }
+
+  const token = issueJwt(sessionUser);
+  res.cookie(JWT_COOKIE_NAME, token, getCookieOptions());
+
+  return res.json({
+    ...payload,
+    utilisateur: sessionUser,
+    token,
+  });
 }
 
 function getAppBaseUrl(req) {
@@ -264,23 +283,100 @@ router.get('/me/abonnement-status', async (req, res, next) => {
   }
 });
 
-router.post('/me/abonnement/upgrade-test', async (req, res, next) => {
+router.post('/me/abonnement/payment-intent', async (req, res, next) => {
   try {
-    await abonnementService.assignPlanToUser(req.auth.sub, abonnementService.PLAN_CODES.PREMIUM);
+    const { planCode, cryptoCode } = req.body || {};
+    const result = await abonnementPaymentService.createPaymentIntentForUser(req.auth.sub, {
+      planCode,
+      cryptoCode,
+    });
 
-    const sessionUser = await getSessionUserById(req.auth.sub);
-    if (!sessionUser) {
-      clearAuthCookie(res);
-      return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    return res.status(201).json({
+      message: 'Demande de paiement créée.',
+      ...result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/me/abonnement/payment-status/:paymentIntentId', async (req, res, next) => {
+  try {
+    const paymentIntent = await abonnementPaymentService.getPaymentIntentForUser(
+      req.auth.sub,
+      Number(req.params.paymentIntentId),
+    );
+
+    return res.json({ paymentIntent });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/me/abonnement/payment-intent/open', async (req, res, next) => {
+  try {
+    const paymentIntent = await abonnementPaymentService.getLatestOpenPaymentIntentForUser(req.auth.sub);
+    return res.json({ paymentIntent });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/me/abonnement/renewal-settings', async (req, res, next) => {
+  try {
+    const renewal = await subscriptionRenewalService.getRenewalSettingsForUser(req.auth.sub);
+    return res.json({ renewal });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.put('/me/abonnement/renewal-settings', async (req, res, next) => {
+  try {
+    const renewal = await subscriptionRenewalService.updateRenewalSettingsForUser(req.auth.sub, req.body || {});
+    return res.json({
+      message: renewal.mode === 'automatic'
+        ? 'La configuration du renouvellement automatique est enregistrée et reste à finaliser.'
+        : 'Le renouvellement automatique est désactivé.',
+      renewal,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/me/abonnement/payments', async (req, res, next) => {
+  try {
+    const payments = await abonnementPaymentService.listPaymentsForUser(req.auth.sub, {
+      limit: Number(req.query.limit) || 20,
+    });
+
+    return res.json({ payments });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/me/abonnement/payment-confirmation', async (req, res, next) => {
+  try {
+    const paymentIntentId = Number(req.body?.paymentIntentId);
+    const transactionHash = req.body?.transactionHash;
+
+    if (!Number.isInteger(paymentIntentId) || paymentIntentId <= 0 || !transactionHash) {
+      return res.status(400).json({ error: 'paymentIntentId et transactionHash sont requis.' });
     }
 
-    const token = issueJwt(sessionUser);
-    res.cookie(JWT_COOKIE_NAME, token, getCookieOptions());
+    const result = await abonnementPaymentService.confirmPaymentIntentForUser(
+      req.auth.sub,
+      paymentIntentId,
+      transactionHash,
+    );
 
-    return res.json({
-      message: 'Le plan Premium de test a été activé.',
-      utilisateur: sessionUser,
-      token,
+    return refreshSessionResponse(res, req.auth.sub, {
+      message: result.alreadyConfirmed
+        ? 'Ce paiement Ethereum avait déjà été confirmé.'
+        : 'Paiement Ethereum confirmé. Le plan Premium est maintenant actif.',
+      ...result,
     });
   } catch (error) {
     return next(error);
@@ -296,23 +392,14 @@ router.get('/me/abonnement/downgrade-preview', async (req, res, next) => {
   }
 });
 
-router.post('/me/abonnement/downgrade-test', async (req, res, next) => {
+router.post('/me/abonnement/downgrade', async (req, res, next) => {
   try {
-    await abonnementService.downgradeUserToFreeWithSelection(req.auth.sub, req.body || {});
-
-    const sessionUser = await getSessionUserById(req.auth.sub);
-    if (!sessionUser) {
-      clearAuthCookie(res);
-      return res.status(404).json({ error: 'Utilisateur introuvable.' });
-    }
-
-    const token = issueJwt(sessionUser);
-    res.cookie(JWT_COOKIE_NAME, token, getCookieOptions());
-
-    return res.json({
-      message: 'Le retour au plan gratuit de test a été appliqué.',
-      utilisateur: sessionUser,
-      token,
+    const result = await abonnementService.downgradeUserToFreeWithSelection(req.auth.sub, req.body || {});
+    return refreshSessionResponse(res, req.auth.sub, {
+      message: result?.scheduledOnly
+        ? 'Le retour au plan gratuit est programmé à la fin de votre période Premium.'
+        : 'Le retour au plan gratuit a été appliqué.',
+      downgrade: result || null,
     });
   } catch (error) {
     if (error.statusCode && error.details) {

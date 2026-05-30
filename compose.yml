@@ -20,17 +20,28 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Budgie}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      ETH_RPC_URL: ${ETH_RPC_URL:-http://anvil:8545}
+      ETH_CHAIN_ID: ${ETH_CHAIN_ID:-31337}
+      ETH_CHAIN_NAME: ${ETH_CHAIN_NAME:-Anvil Local}
+      ETH_WALLET_ADDRESS: ${ETH_WALLET_ADDRESS:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}
     depends_on:
       db:
         condition: service_healthy
+      anvil:
+        condition: service_started
     networks:
       - ibc-internal
       - ibc-public
 
   frontend:
     build: ./frontend
+    environment:
+      VITE_ETH_RPC_URL: ${VITE_ETH_RPC_URL:-http://localhost:8545}
+      VITE_ETH_CHAIN_ID: ${VITE_ETH_CHAIN_ID:-31337}
+      VITE_ETH_CHAIN_NAME: ${VITE_ETH_CHAIN_NAME:-Anvil Local}
     depends_on:
       - backend
+      - anvil
     networks:
       - ibc-public
     expose:
@@ -79,6 +90,24 @@ services:
       - ibc-public
     expose:
       - "80"
+
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    entrypoint:
+      - anvil
+    environment:
+      ANVIL_IP_ADDR: 0.0.0.0
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8545"
+      - --chain-id
+      - "31337"
+    ports:
+      - "8545:8545"
+    networks:
+      - ibc-public
 
 networks:
   ibc-internal:
