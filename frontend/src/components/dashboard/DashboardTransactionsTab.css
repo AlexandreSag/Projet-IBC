@@ -225,8 +225,9 @@
   border-color: rgba(34, 197, 94, 0.3);
 }
 
-.dashboard-transaction-manager-modal {
-  width: min(1080px, 96vw);
+.dashboard-modal.dashboard-transaction-manager-modal {
+  width: min(1180px, calc(100vw - 2rem));
+  max-width: 1180px;
   max-height: 90vh;
   overflow: auto;
 }
@@ -239,37 +240,24 @@
   min-width: 0;
 }
 
-.dashboard-modal-close-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 1px solid var(--couleur-bordure);
-  background: var(--couleur-surface);
-  color: var(--couleur-texte-2);
-  display: grid;
-  place-items: center;
-  padding: 0;
-  box-shadow: none;
-}
-
-.dashboard-modal-close-btn:hover {
-  transform: none;
-  box-shadow: none;
-  border-color: var(--couleur-primaire);
-  color: var(--couleur-primaire-texte);
-}
-
 .dashboard-transaction-manager-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-  gap: 0.9rem;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 1rem;
   align-items: start;
+  min-width: 0;
+}
+
+.dashboard-transaction-manager-grid > * {
   min-width: 0;
 }
 
 .dashboard-transaction-form {
   margin-top: 0;
-  padding-right: 0.2rem;
+  padding: 1rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 14px;
+  background: var(--couleur-surface-claire);
 }
 
 .dashboard-transaction-form select {
@@ -288,10 +276,21 @@
   overflow: auto;
   max-height: 460px;
   min-width: 0;
+  background: var(--couleur-surface);
 }
 
 .dashboard-transaction-manager-table {
-  min-width: 640px;
+  min-width: 760px;
+}
+
+.dashboard-transaction-manager-table th,
+.dashboard-transaction-manager-table td {
+  vertical-align: middle;
+}
+
+.dashboard-transaction-manager-table td:last-child,
+.dashboard-transaction-manager-table th:last-child {
+  width: 92px;
 }
 
 .dashboard-transaction-inline-actions {
@@ -325,13 +324,17 @@
   color: #dc2626;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1240px) {
   .dashboard-transaction-grid {
     grid-template-columns: 1fr;
   }
 
   .dashboard-transaction-manager-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-transaction-form {
+    padding: 0.95rem;
   }
 }
 
@@ -444,13 +447,17 @@
     overflow-wrap: anywhere;
   }
 
-  .dashboard-transaction-manager-modal {
+  .dashboard-modal.dashboard-transaction-manager-modal {
     width: 100%;
   }
 
   .dashboard-transaction-manager-list {
     max-height: none;
     overflow: visible;
+  }
+
+  .dashboard-transaction-manager-table {
+    min-width: 0;
   }
 }
 

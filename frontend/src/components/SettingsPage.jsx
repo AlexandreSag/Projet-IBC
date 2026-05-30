@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { requestJson, useAuth } from '../context/AuthContext.jsx';
 import DashboardTopbar from './dashboard/DashboardTopbar.jsx';
+import SubscriptionDowngradeModal from './subscription/SubscriptionDowngradeModal.jsx';
+import {
+  buildProjectedDowngrade,
+  isProjectedDowngradeValid,
+  normalizeSelection,
+} from './subscription/subscriptionUtils.js';
 import './settings/SettingsPage.css';
 
 const PASSWORD_HINT =
@@ -18,7 +24,8 @@ function isStrongPassword(password) {
 }
 
 export default function SettingsPage() {
-  const { user, abonnement, updateProfile, changePassword } = useAuth();
+  const { user, abonnement, updateProfile, changePassword, downgradeToFree } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [profileForm, setProfileForm] = useState({
     nom: '',
     prenom: '',
@@ -32,10 +39,23 @@ export default function SettingsPage() {
   const [profileMessage, setProfileMessage] = useState(null);
   const [passwordMessage, setPasswordMessage] = useState(null);
   const [abonnementStatus, setAbonnementStatus] = useState(null);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [openPaymentIntent, setOpenPaymentIntent] = useState(null);
   const [abonnementError, setAbonnementError] = useState(null);
   const [loadingAbonnementStatus, setLoadingAbonnementStatus] = useState(true);
+  const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(true);
   const [isProfileSubmitting, setIsProfileSubmitting] = useState(false);
   const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
+  const [isLoadingDowngradePreview, setIsLoadingDowngradePreview] = useState(false);
+  const [isSubmittingDowngrade, setIsSubmittingDowngrade] = useState(false);
+  const [downgradePreview, setDowngradePreview] = useState(null);
+  const [showDowngradeModal, setShowDowngradeModal] = useState(false);
+  const [hasAutoOpenedCleanup, setHasAutoOpenedCleanup] = useState(false);
+  const [downgradeSelection, setDowngradeSelection] = useState({
+    accountIds: [],
+    depenseIds: [],
+    revenuIds: [],
+  });
 
   useEffect(() => {
     setProfileForm({
@@ -50,30 +70,32 @@ export default function SettingsPage() {
 
     async function loadAbonnementStatus() {
       setLoadingAbonnementStatus(true);
+      setLoadingPaymentHistory(true);
       setAbonnementError(null);
 
       try {
-        const response = await fetch('/api/me/abonnement-status', {
-          method: 'GET',
-          credentials: 'include',
-        });
-        const data = await response.json().catch(() => null);
-
-        if (!response.ok) {
-          throw new Error(data?.error || 'Impossible de charger les informations d’abonnement.');
-        }
+        const [statusData, paymentsData, openPaymentData] = await Promise.all([
+          requestJson('/api/me/abonnement-status', { method: 'GET' }),
+          requestJson('/api/me/abonnement/payments?limit=10', { method: 'GET' }),
+          requestJson('/api/me/abonnement/payment-intent/open', { method: 'GET' }),
+        ]);
 
         if (!cancelled) {
-          setAbonnementStatus(data);
+          setAbonnementStatus(statusData);
+          setPaymentHistory(Array.isArray(paymentsData?.payments) ? paymentsData.payments : []);
+          setOpenPaymentIntent(openPaymentData?.paymentIntent || null);
         }
       } catch (error) {
         if (!cancelled) {
           setAbonnementStatus(null);
+          setPaymentHistory([]);
+          setOpenPaymentIntent(null);
           setAbonnementError(error.message || 'Impossible de charger les informations d’abonnement.');
         }
       } finally {
         if (!cancelled) {
           setLoadingAbonnementStatus(false);
+          setLoadingPaymentHistory(false);
         }
       }
     }
@@ -85,13 +107,155 @@ export default function SettingsPage() {
     };
   }, [user?.id]);
 
+  const projectedDowngrade = useMemo(
+    () => buildProjectedDowngrade(downgradePreview, downgradeSelection),
+    [downgradePreview, downgradeSelection],
+  );
+
+  const canConfirmDowngrade = isProjectedDowngradeValid(projectedDowngrade);
+
+  const downgradeSelectionStats = useMemo(() => ({
+    accounts: downgradeSelection.accountIds.length,
+    depenses: downgradeSelection.depenseIds.length,
+    revenus: downgradeSelection.revenuIds.length,
+  }), [downgradeSelection]);
+
+  const recommendedSelectionStats = useMemo(() => ({
+    accounts: downgradePreview?.recommendedSelection?.accountIds?.length || 0,
+    depenses: downgradePreview?.recommendedSelection?.depenseIds?.length || 0,
+    revenus: downgradePreview?.recommendedSelection?.revenuIds?.length || 0,
+  }), [downgradePreview]);
+
   const formatUsage = (usage) => {
     if (!usage) return 'Indisponible';
     if (usage.isUnlimited) return `${usage.used} utilisés (illimité)`;
     return `${usage.used}/${usage.limit} utilisés, ${usage.remaining} restants`;
   };
 
+  const formatDateTime = (value) => {
+    if (!value) {
+      return 'Non disponible';
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Non disponible' : date.toLocaleString('fr-FR');
+  };
+
+  const formatPrice = (value, suffix = '€') => {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      return `0 ${suffix}`;
+    }
+
+    return `${number.toFixed(suffix === 'ETH' ? 8 : 2)} ${suffix}`;
+  };
+
+  const paymentStats = useMemo(() => {
+    const confirmedPayments = paymentHistory.filter((payment) => payment.status === 'confirmed');
+
+    return {
+      total: confirmedPayments.length,
+      confirmed: confirmedPayments.length,
+    };
+  }, [paymentHistory]);
+
+  const confirmedPaymentHistory = useMemo(
+    () => paymentHistory.filter((payment) => payment.status === 'confirmed'),
+    [paymentHistory],
+  );
+
   const statusAbonnement = abonnementStatus?.abonnement || abonnement;
+
+  const reloadSubscriptionData = async () => {
+    const [statusData, paymentsData, openPaymentData] = await Promise.all([
+      requestJson('/api/me/abonnement-status', { method: 'GET' }),
+      requestJson('/api/me/abonnement/payments?limit=10', { method: 'GET' }),
+      requestJson('/api/me/abonnement/payment-intent/open', { method: 'GET' }),
+    ]);
+
+    setAbonnementStatus(statusData);
+    setPaymentHistory(Array.isArray(paymentsData?.payments) ? paymentsData.payments : []);
+    setOpenPaymentIntent(openPaymentData?.paymentIntent || null);
+  };
+
+  const handleOpenDowngradeFlow = async () => {
+    setIsLoadingDowngradePreview(true);
+    setAbonnementError(null);
+
+    try {
+      const preview = await requestJson('/api/me/abonnement/downgrade-preview', { method: 'GET' });
+      setDowngradePreview(preview);
+      setDowngradeSelection(normalizeSelection(preview?.recommendedSelection));
+      setShowDowngradeModal(true);
+    } catch (error) {
+      setAbonnementError(error.message || 'Impossible de préparer le retour au plan gratuit.');
+    } finally {
+      setIsLoadingDowngradePreview(false);
+    }
+  };
+
+  useEffect(() => {
+    const shouldOpenCleanupFlow = searchParams.get('cleanup') === '1'
+      || Boolean(statusAbonnement?.cleanupRequired);
+
+    if (!shouldOpenCleanupFlow || hasAutoOpenedCleanup || loadingAbonnementStatus || isLoadingDowngradePreview || showDowngradeModal) {
+      return;
+    }
+
+    setHasAutoOpenedCleanup(true);
+    void handleOpenDowngradeFlow();
+
+    if (searchParams.get('cleanup') === '1') {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('cleanup');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [
+    handleOpenDowngradeFlow,
+    hasAutoOpenedCleanup,
+    isLoadingDowngradePreview,
+    loadingAbonnementStatus,
+    searchParams,
+    setSearchParams,
+    showDowngradeModal,
+    statusAbonnement?.cleanupRequired,
+  ]);
+
+  const handleDowngradeSelectionToggle = (type, id) => {
+    setDowngradeSelection((current) => {
+      const next = new Set(current[type]);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+
+      return {
+        ...current,
+        [type]: [...next],
+      };
+    });
+  };
+
+  const handleConfirmDowngrade = async () => {
+    if (!downgradePreview || isSubmittingDowngrade) {
+      return;
+    }
+
+    setIsSubmittingDowngrade(true);
+    setAbonnementError(null);
+
+    try {
+      await downgradeToFree(downgradeSelection);
+      setShowDowngradeModal(false);
+      setDowngradePreview(null);
+      await reloadSubscriptionData();
+    } catch (error) {
+      setAbonnementError(error.message || 'Impossible de revenir au plan gratuit.');
+    } finally {
+      setIsSubmittingDowngrade(false);
+    }
+  };
 
   const handleProfileSubmit = async (event) => {
     event.preventDefault();
@@ -206,6 +370,21 @@ export default function SettingsPage() {
                         ? 'Aucune limite de comptes, dépenses ou revenus.'
                         : 'Des quotas s’appliquent à votre utilisation.'}
                     </p>
+                    {statusAbonnement?.expiresAt && (
+                      <p className="settings-subtle-text">
+                        Premium actif jusqu’au {formatDateTime(statusAbonnement.expiresAt)}.
+                      </p>
+                    )}
+                    {statusAbonnement?.cancelAtPeriodEnd && (
+                      <p className="settings-subtle-text">
+                        L’annulation de l’abonnement est déjà programmée.
+                      </p>
+                    )}
+                    {statusAbonnement?.cleanupRequired && (
+                      <p className="feedback error">
+                        Votre période Premium est terminée. Un nettoyage est nécessaire pour revenir sous les quotas du plan gratuit.
+                      </p>
+                    )}
                   </div>
                   <div className="settings-plan-price">
                     {statusAbonnement?.prix === '0.00' || statusAbonnement?.prix === 0 || !statusAbonnement?.prix
@@ -213,6 +392,23 @@ export default function SettingsPage() {
                       : `${statusAbonnement.prix} €`}
                   </div>
                 </div>
+
+                {(statusAbonnement?.isPremium || statusAbonnement?.cleanupRequired) && (
+                  <div className="settings-plan-actions">
+                    <button
+                      type="button"
+                      className={`btn ${statusAbonnement?.cleanupRequired ? 'ghost' : 'danger'} small`}
+                      onClick={handleOpenDowngradeFlow}
+                      disabled={isLoadingDowngradePreview || isSubmittingDowngrade}
+                    >
+                      {statusAbonnement?.cleanupRequired
+                        ? 'Mettre le compte en conformité'
+                        : isLoadingDowngradePreview
+                          ? 'Préparation...'
+                          : 'Annuler mon abonnement'}
+                    </button>
+                  </div>
+                )}
 
                 <div className="settings-quota-grid info-card-grid">
                   <article className="settings-quota-card info-card">
@@ -251,6 +447,81 @@ export default function SettingsPage() {
                     ))
                   ) : (
                     <p className="settings-subtle-text">Aucun compte créé pour le moment.</p>
+                  )}
+                </div>
+
+                <div className="settings-payment-history">
+                  <div className="settings-payment-history-head">
+                    <div>
+                      <h3>Historique des paiements</h3>
+                      <p className="settings-subtle-text">
+                        Retrouvez ici vos paiements Premium confirmés.
+                      </p>
+                    </div>
+                  </div>
+
+                  {openPaymentIntent && (
+                    <article className="settings-payment-open-card info-card">
+                      <div>
+                        <strong>Paiement en cours</strong>
+                        <p className="settings-subtle-text">
+                          Créé le {formatDateTime(openPaymentIntent.createdAt)}. Vous pouvez le reprendre depuis la page abonnement.
+                        </p>
+                      </div>
+                      <div className="settings-payment-open-meta">
+                        <span className="settings-payment-status pending">En attente</span>
+                        <Link to="/subscription" className="btn primary small">
+                          Reprendre le paiement
+                        </Link>
+                      </div>
+                    </article>
+                  )}
+
+                  <div className="settings-payment-stats info-card-grid">
+                    <article className="info-card">
+                      <strong>Total</strong>
+                      <p>{paymentStats.total} paiement{paymentStats.total > 1 ? 's' : ''}</p>
+                    </article>
+                    <article className="info-card">
+                      <strong>Confirmés</strong>
+                      <p>{paymentStats.confirmed}</p>
+                    </article>
+                  </div>
+
+                  {loadingPaymentHistory ? (
+                    <p className="settings-subtle-text">Chargement de l’historique des paiements...</p>
+                  ) : confirmedPaymentHistory.length ? (
+                    <div className="settings-payment-list">
+                      {confirmedPaymentHistory.map((payment) => (
+                        <article key={payment.id} className="settings-payment-item info-card">
+                          <div className="settings-payment-item-head">
+                            <div>
+                              <strong>Paiement #{payment.id}</strong>
+                              <p className="settings-subtle-text">
+                                {formatDateTime(payment.confirmedAt || payment.createdAt)}
+                              </p>
+                            </div>
+                            <span className={`settings-payment-status ${payment.status}`}>
+                              {payment.status}
+                            </span>
+                          </div>
+
+                          <div className="settings-payment-item-grid">
+                            <p><strong>Montant:</strong> {formatPrice(payment.montantEur, '€')}</p>
+                            <p><strong>Crypto:</strong> {formatPrice(payment.montantCrypto, 'ETH')}</p>
+                            <p><strong>Réseau:</strong> {payment.network}</p>
+                            <p><strong>Date:</strong> {formatDateTime(payment.createdAt)}</p>
+                          </div>
+
+                          <div className="settings-payment-hash-block">
+                            <span>Hash</span>
+                            <code>{payment.transactionHash}</code>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="settings-subtle-text">Aucun paiement confirmé enregistré pour le moment.</p>
                   )}
                 </div>
               </div>
@@ -380,6 +651,19 @@ export default function SettingsPage() {
           </article>
         </section>
       </main>
+
+      <SubscriptionDowngradeModal
+        downgradePreview={showDowngradeModal ? downgradePreview : null}
+        downgradeSelection={downgradeSelection}
+        projectedDowngrade={projectedDowngrade}
+        canConfirmDowngrade={canConfirmDowngrade}
+        downgradeSelectionStats={downgradeSelectionStats}
+        recommendedSelectionStats={recommendedSelectionStats}
+        isSubmittingPlanChange={isSubmittingDowngrade}
+        onToggleSelection={handleDowngradeSelectionToggle}
+        onClose={() => setShowDowngradeModal(false)}
+        onConfirm={handleConfirmDowngrade}
+      />
     </div>
   );
 }

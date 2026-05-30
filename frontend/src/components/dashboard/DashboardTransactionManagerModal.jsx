@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getTodayIsoDate, formatDateForInput, formatDateForDisplay } from '../../utils/dateUtils';
+import { formatRuleDuration } from '../../utils/transactionHelpers';
 
 export default function DashboardTransactionManagerModal({
   comptes,
@@ -347,6 +348,7 @@ export default function DashboardTransactionManagerModal({
                 <tr>
                   <th scope="col">{itemLabelCapitalized}</th>
                   <th scope="col">Date</th>
+                  <th scope="col">Durée</th>
                   <th scope="col">Compte</th>
                   <th scope="col">Montant</th>
                   <th scope="col">Actions</th>
@@ -355,13 +357,14 @@ export default function DashboardTransactionManagerModal({
               <tbody>
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan="5" className="dashboard-empty-row">Aucun {itemLabel} à gérer.</td>
+                    <td colSpan="6" className="dashboard-empty-row">Aucun {itemLabel} à gérer.</td>
                   </tr>
                 )}
                 {items.map((item) => (
                   <tr key={item.id}>
                     <td data-label={itemLabelCapitalized}>{item.nom || item.nom_court}</td>
                     <td data-label="Date">{formatDateForDisplay(item.date_debut)}</td>
+                    <td data-label="Durée">{formatRuleDuration(item)}</td>
                     <td data-label="Compte">{item.compte_nom_court || '-'}</td>
                     <td data-label="Montant" className={amountCellClass}>
                       {amountSign}{euroFormatter.format(Math.abs(Number(item.montant || 0)))}

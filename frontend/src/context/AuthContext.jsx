@@ -77,16 +77,8 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
-  const upgradeToPremiumTest = useCallback(async () => {
-    const data = await requestJson('/api/me/abonnement/upgrade-test', {
-      method: 'POST',
-    });
-    setUser(data?.utilisateur || null);
-    return data;
-  }, []);
-
-  const downgradeToFreeTest = useCallback(async (selection = {}) => {
-    const data = await requestJson('/api/me/abonnement/downgrade-test', {
+  const downgradeToFree = useCallback(async (selection = {}) => {
+    const data = await requestJson('/api/me/abonnement/downgrade', {
       method: 'POST',
       body: JSON.stringify(selection),
     });
@@ -115,20 +107,18 @@ export function AuthProvider({ children }) {
       register,
       updateProfile,
       changePassword,
-      upgradeToPremiumTest,
-      downgradeToFreeTest,
+      downgradeToFree,
       logout,
     }),
     [
       changePassword,
-      downgradeToFreeTest,
+      downgradeToFree,
       isLoading,
       login,
       logout,
       refreshSession,
       register,
       updateProfile,
-      upgradeToPremiumTest,
       user,
     ],
   );

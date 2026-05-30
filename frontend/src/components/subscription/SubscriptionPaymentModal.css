@@ -1,0 +1,193 @@
+.subscription-payment-modal {
+  width: min(480px, 100%);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.subscription-payment-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.subscription-payment-header h2 {
+  margin: 0.3rem 0 0.25rem;
+  font-size: 1.15rem;
+}
+
+.subscription-payment-subtitle {
+  margin: 0;
+  color: var(--couleur-texte-2);
+}
+
+.subscription-payment-wallet-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border-radius: 14px;
+  background: rgba(244, 247, 250, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 0.85rem 0.95rem;
+}
+
+.subscription-payment-wallet-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.subscription-payment-wallet-copy,
+.subscription-payment-wallet-meta,
+.subscription-payment-wallet-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.subscription-payment-wallet-copy {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+
+.subscription-payment-wallet-meta {
+  justify-content: flex-end;
+}
+
+.subscription-payment-wallet-copy span,
+.subscription-payment-wallet-meta span,
+.subscription-payment-summary-label {
+  color: var(--couleur-texte-2);
+  font-size: 0.9rem;
+}
+
+.subscription-payment-wallet-copy strong {
+  font-size: 1rem;
+}
+
+.subscription-payment-summary {
+  border: 1px solid rgba(14, 165, 183, 0.18);
+  background: rgba(248, 252, 255, 0.96);
+  border-radius: 14px;
+  padding: 0.95rem;
+}
+
+.subscription-payment-summary-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.subscription-payment-summary-head strong {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 1.15rem;
+}
+
+.subscription-payment-detail-grid {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.subscription-payment-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.subscription-payment-detail-row span {
+  color: var(--couleur-texte-2);
+}
+
+.subscription-payment-address-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.1rem 0;
+}
+
+.subscription-payment-address-block label {
+  font-weight: 600;
+}
+
+.subscription-payment-address-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.subscription-payment-address-row input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.95rem;
+  background: var(--couleur-surface-claire);
+}
+
+.subscription-payment-copy-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  padding: 0;
+}
+
+.subscription-payment-address-block p {
+  margin: 0;
+  color: var(--couleur-texte-2);
+  font-size: 0.92rem;
+}
+
+.subscription-payment-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.subscription-payment-hash {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.95);
+  border-radius: 16px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.subscription-payment-hash span,
+.subscription-payment-hint {
+  color: var(--couleur-texte-2);
+  font-size: 0.92rem;
+}
+
+.subscription-payment-hash strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  overflow-wrap: anywhere;
+}
+
+.subscription-payment-hint {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .subscription-payment-wallet-main,
+  .subscription-payment-summary-head,
+  .subscription-payment-detail-row,
+  .subscription-payment-wallet-actions { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 560px) {
+  .subscription-payment-address-row,
+  .subscription-payment-actions { grid-template-columns: 1fr; }
+  .subscription-payment-copy-btn { width: 100%; }
+  .subscription-payment-wallet-actions .btn { width: 100%; }
+}
+
+@media (max-width: 420px) {
+}

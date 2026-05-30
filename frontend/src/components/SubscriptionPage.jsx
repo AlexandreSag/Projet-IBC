@@ -1,160 +1,43 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { createWalletClient, parseEther } from 'viem';
 import { requestJson, useAuth } from '../context/AuthContext.jsx';
+import {
+  anvilLocalChain,
+  anvilPublicClient,
+  createBrowserWalletClient,
+  getEthereumProvider,
+} from '../lib/walletConfig.js';
+import SubscriptionBenefitsSection from './subscription/SubscriptionBenefitsSection.jsx';
+import SubscriptionCurrentCard from './subscription/SubscriptionCurrentCard.jsx';
+import SubscriptionPaymentModal from './subscription/SubscriptionPaymentModal.jsx';
+import SubscriptionPlansSection from './subscription/SubscriptionPlansSection.jsx';
 import './subscription/SubscriptionPage.css';
 
-const freePlanFeatures = [
-  { label: '2 comptes maximum', included: true },
-  { label: '7 dépenses par compte', included: true },
-  { label: '2 revenus par compte', included: true },
-  { label: 'Vue claire des quotas', included: true },
-  { label: 'Paiements blockchain', included: false },
-  { label: 'Support prioritaire', included: false },
-  { label: 'Suppression des limites', included: false },
-];
-
-const premiumPlanFeatures = [
-  { label: 'Comptes illimités' },
-  { label: 'Dépenses illimitées' },
-  { label: 'Revenus illimités' },
-  { label: 'Paiements blockchain' },
-  { label: 'Rapports avancés' },
-  { label: 'Support prioritaire 24/7' },
-  { label: 'Partage étendu' },
-];
-
-const premiumBenefits = [
-  {
-    icon: 'fa-solid fa-shield-halved',
-    title: 'Blockchain',
-    description: 'Réglez votre abonnement via Ethereum ou Bitcoin dès l’activation du paiement.',
-    tone: 'cyan',
-  },
-  {
-    icon: 'fa-solid fa-users',
-    title: 'Partage',
-    description: 'Préparez des espaces plus collaboratifs pour gérer un budget en commun.',
-    tone: 'indigo',
-  },
-  {
-    icon: 'fa-solid fa-infinity',
-    title: 'Illimité',
-    description: 'Retirez les limites de comptes, de dépenses et de revenus sur toute l’application.',
-    tone: 'violet',
-  },
-];
-
-function normalizeSelection(selection) {
-  return {
-    accountIds: Array.isArray(selection?.accountIds) ? selection.accountIds : [],
-    depenseIds: Array.isArray(selection?.depenseIds) ? selection.depenseIds : [],
-    revenuIds: Array.isArray(selection?.revenuIds) ? selection.revenuIds : [],
-  };
-}
-
-function buildProjectedDowngrade(preview, selection) {
-  if (!preview?.targetPlan) {
-    return null;
-  }
-
-  const selectedAccounts = new Set(selection?.accountIds || []);
-  const selectedDepenses = new Set(selection?.depenseIds || []);
-  const selectedRevenus = new Set(selection?.revenuIds || []);
-  const keptAccounts = (preview.accounts || [])
-    .filter((account) => !selectedAccounts.has(account.id))
-    .map((account) => ({
-      ...account,
-      depenses: (account.depenses || []).filter((depense) => !selectedDepenses.has(depense.id)),
-      revenus: (account.revenus || []).filter((revenu) => !selectedRevenus.has(revenu.id)),
-    }));
-
-  const accountLimit = preview.targetPlan.limits?.comptes;
-  const depensesLimit = preview.targetPlan.limits?.depensesParCompte;
-  const revenusLimit = preview.targetPlan.limits?.revenusParCompte;
-
-  const perCompte = keptAccounts.map((account) => ({
-    accountId: account.id,
-    accountName: account.nom_court,
-    depensesUsed: account.depenses.length,
-    depensesLimit,
-    depensesOverBy: depensesLimit === null ? 0 : Math.max(account.depenses.length - depensesLimit, 0),
-    revenusUsed: account.revenus.length,
-    revenusLimit,
-    revenusOverBy: revenusLimit === null ? 0 : Math.max(account.revenus.length - revenusLimit, 0),
-  }));
-
-  return {
-    comptesUsed: keptAccounts.length,
-    comptesLimit: accountLimit,
-    comptesOverBy: accountLimit === null ? 0 : Math.max(keptAccounts.length - accountLimit, 0),
-    perCompte,
-  };
-}
-
-function isProjectedDowngradeValid(projected) {
-  if (!projected) {
-    return false;
-  }
-
-  return projected.comptesOverBy === 0
-    && projected.perCompte.every((account) => account.depensesOverBy === 0 && account.revenusOverBy === 0);
-}
-
-function formatAmount(value) {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) {
-    return '0 €';
-  }
-
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(amount);
-}
-
-function formatUsage(usage) {
-  if (!usage) {
-    return 'Indisponible';
-  }
-
-  if (usage.isUnlimited) {
-    return 'Illimité';
-  }
-
-  return `${usage.used} / ${usage.limit}`;
-}
-
-function getProgressPercent(usage) {
-  if (!usage) {
-    return 0;
-  }
-
-  if (usage.isUnlimited) {
-    return 100;
-  }
-
-  if (!usage.limit) {
-    return 0;
-  }
-
-  return Math.min((usage.used / usage.limit) * 100, 100);
-}
-
 export default function SubscriptionPage() {
-  const { abonnement, isPremium, upgradeToPremiumTest, downgradeToFreeTest } = useAuth();
+  const { abonnement, isPremium, refreshSession } = useAuth();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [infoMessage, setInfoMessage] = useState(null);
-  const [isSubmittingPlanChange, setIsSubmittingPlanChange] = useState(false);
-  const [isLoadingDowngradePreview, setIsLoadingDowngradePreview] = useState(false);
-  const [showDowngradeModal, setShowDowngradeModal] = useState(false);
-  const [downgradePreview, setDowngradePreview] = useState(null);
-  const [downgradeSelection, setDowngradeSelection] = useState({
-    accountIds: [],
-    depenseIds: [],
-    revenuIds: [],
-  });
+  const [isLoadingPaymentIntent, setIsLoadingPaymentIntent] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentIntent, setPaymentIntent] = useState(null);
+  const [openPaymentIntent, setOpenPaymentIntent] = useState(null);
+  const [walletAddress, setWalletAddress] = useState(null);
+  const [walletChainId, setWalletChainId] = useState(null);
+  const [walletSessionDisconnected, setWalletSessionDisconnected] = useState(false);
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
+  const [isSwitchingChain, setIsSwitchingChain] = useState(false);
+  const [isSendingTransaction, setIsSendingTransaction] = useState(false);
+  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+  const [isFinalizingPayment, setIsFinalizingPayment] = useState(false);
+  const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
+  const [paymentHash, setPaymentHash] = useState(null);
+
+  const isConnected = Boolean(walletAddress) && !walletSessionDisconnected;
+  const isOnAnvilChain = walletChainId === anvilLocalChain.id;
+  const activePlan = status?.abonnement || abonnement;
 
   const loadStatus = useCallback(async (signal) => {
     setLoading(true);
@@ -177,19 +60,86 @@ export default function SubscriptionPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-
     void loadStatus(controller.signal);
-
-    return () => {
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [loadStatus]);
 
-  const activePlan = status?.abonnement || abonnement;
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOpenPaymentIntent() {
+      try {
+        const data = await requestJson('/api/me/abonnement/payment-intent/open', { method: 'GET' });
+        if (!cancelled) {
+          setOpenPaymentIntent(data?.paymentIntent || null);
+        }
+      } catch {
+        if (!cancelled) {
+          setOpenPaymentIntent(null);
+        }
+      }
+    }
+
+    void loadOpenPaymentIntent();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const provider = getEthereumProvider();
+    if (!provider) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const syncWalletState = async () => {
+      try {
+        const [accounts, chainHex] = await Promise.all([
+          provider.request({ method: 'eth_accounts' }),
+          provider.request({ method: 'eth_chainId' }),
+        ]);
+
+        if (cancelled || walletSessionDisconnected) {
+          return;
+        }
+
+        setWalletAddress(Array.isArray(accounts) && accounts[0] ? accounts[0] : null);
+        setWalletChainId(chainHex ? Number.parseInt(chainHex, 16) : null);
+      } catch {
+        if (!cancelled) {
+          setWalletAddress(null);
+          setWalletChainId(null);
+        }
+      }
+    };
+
+    const handleAccountsChanged = (accounts) => {
+      if (!walletSessionDisconnected) {
+        setWalletAddress(Array.isArray(accounts) && accounts[0] ? accounts[0] : null);
+      }
+    };
+
+    const handleChainChanged = (chainHex) => {
+      setWalletChainId(chainHex ? Number.parseInt(chainHex, 16) : null);
+    };
+
+    void syncWalletState();
+    provider.on?.('accountsChanged', handleAccountsChanged);
+    provider.on?.('chainChanged', handleChainChanged);
+
+    return () => {
+      cancelled = true;
+      provider.removeListener?.('accountsChanged', handleAccountsChanged);
+      provider.removeListener?.('chainChanged', handleChainChanged);
+    };
+  }, [walletSessionDisconnected]);
 
   const metrics = useMemo(() => {
     const accountsUsage = status?.usage?.comptes || null;
     const accountDetails = status?.usage?.comptesDetails || [];
+
     const depensesUsage = accountDetails.reduce(
       (accumulator, account) => {
         if (account.depenses.used > accumulator.used) {
@@ -228,109 +178,230 @@ export default function SubscriptionPage() {
       },
     );
 
-    return {
-      accountsUsage,
-      depensesUsage,
-      revenusUsage,
-    };
+    return { accountsUsage, depensesUsage, revenusUsage };
   }, [activePlan, status]);
 
   const handlePremiumAction = async () => {
-    if (isPremium || isSubmittingPlanChange) {
+    if (isPremium || isLoadingPaymentIntent) {
       return;
     }
 
-    setIsSubmittingPlanChange(true);
+    setIsLoadingPaymentIntent(true);
     setError(null);
     setInfoMessage(null);
 
     try {
-      const data = await upgradeToPremiumTest();
-      setInfoMessage(data?.message || 'Le plan Premium de test a été activé.');
-      await loadStatus();
-    } catch (upgradeError) {
-      setError(upgradeError.message || 'Impossible d’activer le plan Premium de test.');
+      const data = await requestJson('/api/me/abonnement/payment-intent', {
+        method: 'POST',
+        body: JSON.stringify({ planCode: 'premium', cryptoCode: 'eth' }),
+      });
+      setPaymentIntent(data?.paymentIntent || null);
+      setOpenPaymentIntent(data?.paymentIntent || null);
+      setPaymentHash(null);
+      setIsPaymentConfirmed(false);
+      setShowPaymentModal(true);
+    } catch (paymentError) {
+      setError(paymentError.message || 'Impossible de préparer le paiement Ethereum.');
     } finally {
-      setIsSubmittingPlanChange(false);
+      setIsLoadingPaymentIntent(false);
     }
   };
 
-  const handleFreeAction = async () => {
-    if (!isPremium || isSubmittingPlanChange) {
+  const handleResumePayment = () => {
+    setPaymentIntent(openPaymentIntent);
+    setShowPaymentModal(true);
+  };
+
+  const handleClosePaymentModal = () => {
+    setShowPaymentModal(false);
+    setPaymentHash(null);
+    setIsConfirmingPayment(false);
+    setIsFinalizingPayment(false);
+    setIsPaymentConfirmed(false);
+  };
+
+  const handleCopyPaymentAddress = async () => {
+    if (!paymentIntent?.walletAddress) {
       return;
     }
 
-    setIsLoadingDowngradePreview(true);
-    setError(null);
-    setInfoMessage(null);
-
     try {
-      const preview = await requestJson('/api/me/abonnement/downgrade-preview', { method: 'GET' });
-      const selection = normalizeSelection(preview?.recommendedSelection);
-      setDowngradePreview(preview);
-      setDowngradeSelection(selection);
-      setShowDowngradeModal(true);
-    } catch (previewError) {
-      setError(previewError.message || 'Impossible de préparer le retour au plan gratuit.');
-    } finally {
-      setIsLoadingDowngradePreview(false);
+      await navigator.clipboard.writeText(paymentIntent.walletAddress);
+      setInfoMessage('Adresse copiée. Vérifiez bien le montant avant d’envoyer le paiement.');
+    } catch {
+      setInfoMessage('Impossible de copier automatiquement l’adresse. Vous pouvez la sélectionner manuellement.');
     }
   };
 
-  const handleDowngradeSelectionToggle = (type, id) => {
-    setDowngradeSelection((current) => {
-      const next = new Set(current[type]);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
+  const handlePaymentSent = () => {
+    setShowPaymentModal(false);
+    setInfoMessage('La transaction a été envoyée. Le statut Premium est en cours de synchronisation.');
+  };
+
+  const handleConnectWallet = async () => {
+    if (isConnected) {
+      return;
+    }
+
+    const provider = getEthereumProvider();
+    if (!provider) {
+      setError('Un wallet Ethereum compatible est requis pour effectuer ce paiement. MetaMask est recommandé.');
+      return;
+    }
+
+    setIsConnectingWallet(true);
+
+    try {
+      setWalletSessionDisconnected(false);
+      const accounts = await provider.request({ method: 'eth_requestAccounts' });
+      const chainHex = await provider.request({ method: 'eth_chainId' });
+      setWalletAddress(Array.isArray(accounts) && accounts[0] ? accounts[0] : null);
+      setWalletChainId(chainHex ? Number.parseInt(chainHex, 16) : null);
+      setInfoMessage('Wallet connecté. Vous pouvez maintenant lancer le paiement.');
+    } catch (walletError) {
+      setError(walletError.message || 'Impossible de connecter le wallet.');
+    } finally {
+      setIsConnectingWallet(false);
+    }
+  };
+
+  const handleSwitchWalletAccount = async () => {
+    const provider = getEthereumProvider();
+    if (!provider) {
+      setError('Un wallet Ethereum compatible est requis pour sélectionner un autre compte.');
+      return;
+    }
+
+    setIsConnectingWallet(true);
+
+    try {
+      setWalletSessionDisconnected(false);
+      await provider.request({
+        method: 'wallet_requestPermissions',
+        params: [{ eth_accounts: {} }],
+      });
+      const accounts = await provider.request({ method: 'eth_requestAccounts' });
+      const chainHex = await provider.request({ method: 'eth_chainId' });
+      setWalletAddress(Array.isArray(accounts) && accounts[0] ? accounts[0] : null);
+      setWalletChainId(chainHex ? Number.parseInt(chainHex, 16) : null);
+      setInfoMessage('Compte du wallet mis à jour.');
+    } catch (walletError) {
+      setError(walletError.message || 'Impossible de changer de compte sur le wallet.');
+    } finally {
+      setIsConnectingWallet(false);
+    }
+  };
+
+  const handleDisconnectWalletSession = () => {
+    setWalletSessionDisconnected(true);
+    setWalletAddress(null);
+    setWalletChainId(null);
+    setInfoMessage('Wallet déconnecté côté application. Le wallet reste ouvert dans le navigateur.');
+  };
+
+  const handleWalletPayment = async () => {
+    if (!paymentIntent) {
+      return;
+    }
+
+    const provider = getEthereumProvider();
+    if (!provider) {
+      setError('Un wallet Ethereum compatible est requis pour effectuer ce paiement. MetaMask est recommandé.');
+      return;
+    }
+
+    try {
+      if (!isConnected) {
+        await handleConnectWallet();
+        return;
       }
 
-      return {
-        ...current,
-        [type]: [...next],
-      };
-    });
-  };
+      if (!isOnAnvilChain) {
+        setIsSwitchingChain(true);
+        const chainHex = `0x${anvilLocalChain.id.toString(16)}`;
 
-  const handleConfirmDowngrade = async () => {
-    if (!downgradePreview || isSubmittingPlanChange) {
-      return;
-    }
+        try {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: chainHex }],
+          });
+        } catch (switchError) {
+          if (switchError?.code === 4902) {
+            await provider.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: chainHex,
+                chainName: anvilLocalChain.name,
+                nativeCurrency: anvilLocalChain.nativeCurrency,
+                rpcUrls: anvilLocalChain.rpcUrls.default.http,
+              }],
+            });
+          } else {
+            throw switchError;
+          }
+        } finally {
+          setIsSwitchingChain(false);
+        }
 
-    setIsSubmittingPlanChange(true);
-    setError(null);
-    setInfoMessage(null);
+        const refreshedChainHex = await provider.request({ method: 'eth_chainId' });
+        setWalletChainId(refreshedChainHex ? Number.parseInt(refreshedChainHex, 16) : null);
+      }
 
-    try {
-      const data = await downgradeToFreeTest(downgradeSelection);
-      setInfoMessage(data?.message || 'Le retour au plan gratuit de test a été appliqué.');
-      setShowDowngradeModal(false);
-      setDowngradePreview(null);
+      const accounts = await provider.request({ method: 'eth_accounts' });
+      const account = Array.isArray(accounts) && accounts[0] ? accounts[0] : walletAddress;
+
+      if (!account) {
+        throw new Error('Aucun compte wallet disponible pour envoyer la transaction.');
+      }
+
+      const walletClient = createWalletClient({
+        chain: anvilLocalChain,
+        transport: createBrowserWalletClient(),
+      });
+
+      if (!walletClient) {
+        throw new Error('Impossible d’initialiser le wallet Ethereum.');
+      }
+
+      setIsSendingTransaction(true);
+      setIsPaymentConfirmed(false);
+      const hash = await walletClient.sendTransaction({
+        account,
+        to: paymentIntent.walletAddress,
+        value: parseEther(String(paymentIntent.montantCrypto)),
+      });
+
+      setPaymentHash(hash);
+      setWalletAddress(account);
+      setInfoMessage('Transaction envoyée. En attente de confirmation Ethereum.');
+
+      setIsConfirmingPayment(true);
+      await anvilPublicClient.waitForTransactionReceipt({ hash });
+      setIsPaymentConfirmed(true);
+      setIsFinalizingPayment(true);
+
+      const confirmation = await requestJson('/api/me/abonnement/payment-confirmation', {
+        method: 'POST',
+        body: JSON.stringify({
+          paymentIntentId: paymentIntent.id,
+          transactionHash: hash,
+        }),
+      });
+
+      await refreshSession();
       await loadStatus();
-    } catch (downgradeError) {
-      setError(downgradeError.message || 'Impossible de revenir au plan gratuit de test.');
+      setOpenPaymentIntent(null);
+      setShowPaymentModal(false);
+      setInfoMessage(confirmation.message || `Transaction Ethereum confirmée: ${hash.slice(0, 10)}...`);
+    } catch (txError) {
+      setError(txError.message || 'Impossible d’envoyer la transaction Ethereum.');
     } finally {
-      setIsSubmittingPlanChange(false);
+      setIsSendingTransaction(false);
+      setIsSwitchingChain(false);
+      setIsConfirmingPayment(false);
+      setIsFinalizingPayment(false);
     }
   };
-
-  const projectedDowngrade = useMemo(
-    () => buildProjectedDowngrade(downgradePreview, downgradeSelection),
-    [downgradePreview, downgradeSelection],
-  );
-
-  const canConfirmDowngrade = isProjectedDowngradeValid(projectedDowngrade);
-  const downgradeSelectionStats = useMemo(() => ({
-    accounts: downgradeSelection.accountIds.length,
-    depenses: downgradeSelection.depenseIds.length,
-    revenus: downgradeSelection.revenuIds.length,
-  }), [downgradeSelection]);
-  const recommendedSelectionStats = useMemo(() => ({
-    accounts: downgradePreview?.recommendedSelection?.accountIds?.length || 0,
-    depenses: downgradePreview?.recommendedSelection?.depenseIds?.length || 0,
-    revenus: downgradePreview?.recommendedSelection?.revenuIds?.length || 0,
-  }), [downgradePreview]);
 
   return (
     <div className="subscription-layout">
@@ -351,371 +422,43 @@ export default function SubscriptionPage() {
         {error && <p className="feedback error">{error}</p>}
         {infoMessage && <p className="feedback success">{infoMessage}</p>}
 
-        <section className="subscription-current-card">
-          <div className="subscription-current-head">
-            <div>
-              <p className="subscription-eyebrow">
-                <i className="fa-regular fa-sparkles" aria-hidden="true" />
-                Votre abonnement actuel
-              </p>
-              <h1>{activePlan?.nom || 'Gratuit'}</h1>
-              <p className="subscription-current-copy">
-                {isPremium
-                  ? 'Votre plan premium est actif. Vous profitez actuellement de l’ensemble des fonctionnalités sans limite.'
-                  : 'Vous êtes sur le plan gratuit. Passez à Premium pour débloquer toutes les fonctionnalités et supprimer les limites.'}
-              </p>
-            </div>
-            <span className={`subscription-status-badge${isPremium ? ' premium' : ''}`}>
-              {isPremium ? 'Premium actif' : 'Actif'}
-            </span>
-          </div>
+        <SubscriptionCurrentCard
+          activePlan={activePlan}
+          isPremium={isPremium}
+          loading={loading}
+          metrics={metrics}
+        />
 
-          <div className="subscription-current-metrics">
-            <article className="subscription-metric">
-              <div className="subscription-metric-row">
-                <span>Comptes utilisés</span>
-                <strong>{loading ? '...' : formatUsage(metrics.accountsUsage)}</strong>
-              </div>
-              <div className="subscription-progress-track">
-                <span
-                  className="subscription-progress-fill"
-                  style={{ width: `${getProgressPercent(metrics.accountsUsage)}%` }}
-                />
-              </div>
-            </article>
+        <SubscriptionPlansSection
+          isPremium={isPremium}
+          isLoadingPaymentIntent={isLoadingPaymentIntent}
+          openPaymentIntent={openPaymentIntent}
+          onPremiumAction={handlePremiumAction}
+          onResumePayment={handleResumePayment}
+        />
 
-            <article className="subscription-metric">
-              <div className="subscription-metric-row">
-                <span>Dépenses max sur un compte</span>
-                <strong>{loading ? '...' : formatUsage(metrics.depensesUsage)}</strong>
-              </div>
-              <div className="subscription-progress-track">
-                <span
-                  className="subscription-progress-fill"
-                  style={{ width: `${getProgressPercent(metrics.depensesUsage)}%` }}
-                />
-              </div>
-            </article>
-
-            <article className="subscription-metric subscription-metric-aside">
-              <span>Revenus max sur un compte</span>
-              <strong>{loading ? '...' : formatUsage(metrics.revenusUsage)}</strong>
-            </article>
-          </div>
-
-          {!isPremium && (
-            <div className="subscription-upsell-banner">
-              <strong>Passez à Premium</strong>
-              <span> pour débloquer toutes les fonctionnalités et supprimer les limites.</span>
-            </div>
-          )}
-        </section>
-
-        <section className="subscription-plans-section">
-          <div className="subscription-section-head">
-            <h2>Choisissez votre plan</h2>
-            <p>Sélectionnez le plan qui correspond à vos besoins.</p>
-          </div>
-
-          <div className="subscription-plan-grid page-grid-2">
-            <article className={`subscription-plan-card${!isPremium ? ' current' : ''}`}>
-              <div className="subscription-plan-card-head">
-                <div className="subscription-plan-icon muted">
-                  <i className="fa-solid fa-wallet" aria-hidden="true" />
-                </div>
-                <div>
-                  <h3>Gratuit</h3>
-                  <p>Pour commencer</p>
-                </div>
-              </div>
-
-              <div className="subscription-plan-price-block">
-                <strong>0.00 €</strong>
-                <span>/mois</span>
-              </div>
-
-              <div className="subscription-plan-divider" />
-
-              <ul className="subscription-feature-list">
-                {freePlanFeatures.map((feature) => (
-                  <li key={feature.label} className={feature.included ? 'included' : 'excluded'}>
-                    <i
-                      className={`fa-solid ${feature.included ? 'fa-check' : 'fa-xmark'}`}
-                      aria-hidden="true"
-                    />
-                    <span>{feature.label}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                type="button"
-                className="btn ghost subscription-plan-action"
-                onClick={handleFreeAction}
-                disabled={!isPremium || isSubmittingPlanChange || isLoadingDowngradePreview}
-              >
-                {!isPremium
-                  ? 'Plan actuel'
-                  : isLoadingDowngradePreview
-                    ? 'Préparation...'
-                    : isSubmittingPlanChange
-                    ? 'Retour...'
-                    : 'Revenir au gratuit'}
-              </button>
-            </article>
-
-            <article className={`subscription-plan-card premium${isPremium ? ' current' : ''}`}>
-              <span className="subscription-popular-badge">Populaire</span>
-
-              <div className="subscription-plan-card-head">
-                <div className="subscription-plan-icon accent">
-                  <i className="fa-solid fa-crown" aria-hidden="true" />
-                </div>
-                <div>
-                  <h3>Premium</h3>
-                  <p>Pour les utilisateurs avancés</p>
-                </div>
-              </div>
-
-              <div className="subscription-plan-price-block">
-                <strong>9.99 €</strong>
-                <span>/mois</span>
-              </div>
-              <p className="subscription-plan-crypto-price">ou 0.00023 BTC / 0.0034 ETH</p>
-
-              <div className="subscription-plan-divider" />
-
-              <ul className="subscription-feature-list">
-                {premiumPlanFeatures.map((feature) => (
-                  <li key={feature.label} className="included">
-                    <i className="fa-solid fa-check" aria-hidden="true" />
-                    <span>{feature.label}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                type="button"
-                className="btn primary subscription-plan-action"
-                onClick={handlePremiumAction}
-                disabled={isPremium || isSubmittingPlanChange}
-              >
-                {isPremium ? 'Plan actif' : isSubmittingPlanChange ? 'Activation...' : 'Activer Premium'}
-              </button>
-            </article>
-          </div>
-        </section>
-
-        <section className="subscription-benefits-card">
-          <div className="subscription-benefits-head">
-            <p className="subscription-eyebrow">
-              <i className="fa-solid fa-bolt" aria-hidden="true" />
-              Pourquoi passer à Premium ?
-            </p>
-          </div>
-
-          <div className="subscription-benefits-grid page-grid-3">
-            {premiumBenefits.map((benefit) => (
-              <article key={benefit.title} className="subscription-benefit-item">
-                <div className={`subscription-benefit-icon ${benefit.tone}`}>
-                  <i className={benefit.icon} aria-hidden="true" />
-                </div>
-                <h3>{benefit.title}</h3>
-                <p>{benefit.description}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+        <SubscriptionBenefitsSection />
       </main>
 
-      {showDowngradeModal && downgradePreview && (
-        <div className="subscription-downgrade-overlay" role="dialog" aria-modal="true" aria-labelledby="downgrade-title">
-          <div className="subscription-downgrade-modal card">
-            <div className="subscription-downgrade-header">
-              <div>
-                <p className="subscription-eyebrow">
-                  <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
-                  Retour au gratuit
-                </p>
-                <h2 id="downgrade-title">Choisissez ce qui sera supprimé</h2>
-                <p className="subscription-downgrade-intro">
-                  Pour revenir au plan gratuit, votre espace doit repasser sous les quotas. Nous avons déjà précoché
-                  une sélection recommandée que vous pouvez ajuster.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="subscription-downgrade-close"
-                onClick={() => setShowDowngradeModal(false)}
-                aria-label="Fermer"
-              >
-                <i className="fa-solid fa-xmark" aria-hidden="true" />
-              </button>
-            </div>
-
-            <div className="subscription-downgrade-layout">
-              <div className="subscription-downgrade-list">
-                {downgradePreview.accounts.map((account) => {
-                  const accountSelected = downgradeSelection.accountIds.includes(account.id);
-                  return (
-                    <article key={account.id} className={`subscription-downgrade-account${accountSelected ? ' selected' : ''}`}>
-                      <div className="subscription-downgrade-account-top">
-                        <label className="subscription-downgrade-account-toggle">
-                          <input
-                            type="checkbox"
-                            checked={accountSelected}
-                            onChange={() => handleDowngradeSelectionToggle('accountIds', account.id)}
-                          />
-                          <span>
-                            <strong>{account.nom_court}</strong>
-                            <small>
-                              Supprimer ce compte supprimera aussi {account.depensesCount} dépense{account.depensesCount > 1 ? 's' : ''} et {account.revenusCount} revenu{account.revenusCount > 1 ? 's' : ''}.
-                            </small>
-                          </span>
-                        </label>
-
-                        <div className="subscription-downgrade-account-badges">
-                          <span className="subscription-downgrade-account-badge">
-                            {account.depensesCount} dép.
-                          </span>
-                          <span className="subscription-downgrade-account-badge">
-                            {account.revenusCount} rev.
-                          </span>
-                        </div>
-                      </div>
-
-                      {!accountSelected && (
-                        <div className="subscription-downgrade-transactions">
-                          {account.depenses?.length > 0 && (
-                            <div className="subscription-downgrade-transaction-group">
-                              <h3>Dépenses</h3>
-                              <div className="subscription-downgrade-items-list">
-                                {account.depenses.map((depense) => (
-                                  <label key={depense.id} className="subscription-downgrade-item">
-                                    <input
-                                      type="checkbox"
-                                      checked={downgradeSelection.depenseIds.includes(depense.id)}
-                                      onChange={() => handleDowngradeSelectionToggle('depenseIds', depense.id)}
-                                    />
-                                    <span>{depense.nom_court}</span>
-                                    <span className="subscription-downgrade-item-amount">{formatAmount(depense.montant)}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {account.revenus?.length > 0 && (
-                            <div className="subscription-downgrade-transaction-group">
-                              <h3>Revenus</h3>
-                              <div className="subscription-downgrade-items-list">
-                                {account.revenus.map((revenu) => (
-                                  <label key={revenu.id} className="subscription-downgrade-item">
-                                    <input
-                                      type="checkbox"
-                                      checked={downgradeSelection.revenuIds.includes(revenu.id)}
-                                      onChange={() => handleDowngradeSelectionToggle('revenuIds', revenu.id)}
-                                    />
-                                    <span>{revenu.nom_court}</span>
-                                    <span className="subscription-downgrade-item-amount">{formatAmount(revenu.montant)}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-
-              <aside className="subscription-downgrade-sidebar">
-                <div className="subscription-downgrade-alert">
-                  <i className="fa-solid fa-circle-info" aria-hidden="true" />
-                  <p>
-                    Les éléments sélectionnés seront définitivement supprimés pour respecter les limites du plan gratuit.
-                  </p>
-                </div>
-
-                <div className="subscription-downgrade-summary-card">
-                  <div className="subscription-downgrade-summary-head">
-                    <h3>État des quotas</h3>
-                    <span className={`subscription-downgrade-state${canConfirmDowngrade ? ' valid' : ' invalid'}`}>
-                      {canConfirmDowngrade ? 'Prêt' : 'Incomplet'}
-                    </span>
-                  </div>
-
-                  <div className="subscription-downgrade-stat-list">
-                    <div className="subscription-downgrade-stat-item">
-                      <span className="stat-label">Comptes conservés</span>
-                      <strong className={`stat-value ${projectedDowngrade?.comptesOverBy === 0 ? 'valid' : 'invalid'}`}>
-                        {projectedDowngrade?.comptesUsed ?? 0} / {projectedDowngrade?.comptesLimit ?? '-'}
-                      </strong>
-                    </div>
-
-                    <div className="subscription-downgrade-stat-divider" />
-
-                    <div className="subscription-downgrade-per-account">
-                      {projectedDowngrade?.perCompte.map((account) => {
-                        const isAccountValid = account.depensesOverBy === 0 && account.revenusOverBy === 0;
-                        return (
-                          <div key={account.accountId} className={`subscription-downgrade-per-account-row ${isAccountValid ? 'valid' : 'invalid'}`}>
-                            <span className="account-name">{account.accountName}</span>
-                            <span className="account-metrics">
-                              <span>{account.depensesUsed}/{account.depensesLimit} dép.</span>
-                              <span>•</span>
-                              <span>{account.revenusUsed}/{account.revenusLimit} rev.</span>
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="subscription-downgrade-total-to-delete">
-                    <span>Éléments à supprimer :</span>
-                    <strong>{downgradeSelectionStats.accounts + downgradeSelectionStats.depenses + downgradeSelectionStats.revenus}</strong>
-                  </div>
-
-                  {!canConfirmDowngrade && (
-                    <div className="subscription-downgrade-error-msg">
-                      <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
-                      <span>Certaines limites sont dépassées. Veuillez sélectionner plus d'éléments à supprimer.</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="subscription-downgrade-recommendation">
-                  <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" />
-                  <div>
-                    <h3>Sélection recommandée</h3>
-                    <p>
-                      {recommendedSelectionStats.accounts} compte{recommendedSelectionStats.accounts > 1 ? 's' : ''},
-                      {' '}{recommendedSelectionStats.depenses} dép. et
-                      {' '}{recommendedSelectionStats.revenus} rev.
-                    </p>
-                  </div>
-                </div>
-              </aside>
-            </div>
-
-            <div className="subscription-downgrade-actions">
-              <button type="button" className="btn ghost" onClick={() => setShowDowngradeModal(false)}>
-                Annuler
-              </button>
-              <button
-                type="button"
-                className="btn primary"
-                onClick={handleConfirmDowngrade}
-                disabled={!canConfirmDowngrade || isSubmittingPlanChange}
-              >
-                {isSubmittingPlanChange ? 'Retour au gratuit...' : 'Confirmer le retour au gratuit'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SubscriptionPaymentModal
+        paymentIntent={showPaymentModal ? paymentIntent : null}
+        walletAddress={walletAddress}
+        isOnAnvilChain={isOnAnvilChain}
+        isConnected={isConnected}
+        isConnectingWallet={isConnectingWallet}
+        isSwitchingChain={isSwitchingChain}
+        isSendingTransaction={isSendingTransaction}
+        isConfirmingPayment={isConfirmingPayment}
+        isFinalizingPayment={isFinalizingPayment}
+        isPaymentConfirmed={isPaymentConfirmed}
+        paymentHash={paymentHash}
+        onClose={handleClosePaymentModal}
+        onCopyAddress={handleCopyPaymentAddress}
+        onSwitchWalletAccount={handleSwitchWalletAccount}
+        onDisconnectWalletSession={handleDisconnectWalletSession}
+        onPaymentAction={isConnected ? handleWalletPayment : handleConnectWallet}
+        onPaymentSent={handlePaymentSent}
+      />
     </div>
   );
 }

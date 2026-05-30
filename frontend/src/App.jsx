@@ -235,7 +235,7 @@ function VerifyEmailPage() {
 }
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -248,6 +248,13 @@ function ProtectedRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  const cleanupRequired = Boolean(user?.abonnement?.cleanupRequired);
+  const isSettingsRoute = location.pathname.startsWith('/settings');
+
+  if (cleanupRequired && !isSettingsRoute) {
+    return <Navigate to="/settings?cleanup=1" replace state={{ from: location.pathname }} />;
   }
 
   return children;

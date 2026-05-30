@@ -80,6 +80,7 @@ export default function DashboardTransactionsList({
                       <span>
                         {transaction.nom}
                         {transaction.description ? <small>{transaction.description}</small> : null}
+                        {transaction.durationLabel ? <small>{transaction.durationLabel}</small> : null}
                       </span>
                     </div>
                   </td>

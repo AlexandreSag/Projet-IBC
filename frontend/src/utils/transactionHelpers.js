@@ -20,6 +20,22 @@ export function resolveRuleCompte(rule) {
   return rule.compte_nom_court || rule.compte_nom || 'Compte inconnu';
 }
 
+export function formatRuleDuration(rule) {
+  const durationType = rule.duree_type || 'ponctuelle';
+  const frequency = resolveRuleFrequency(rule);
+
+  if (durationType === 'ponctuelle' || frequency === 0) {
+    return 'Ponctuelle';
+  }
+
+  if (durationType === 'tous_les_n_mois' && frequency > 0) {
+    const suffix = frequency > 1 ? 'mois' : 'mois';
+    return `Tous les ${frequency} ${suffix}`;
+  }
+
+  return 'Non définie';
+}
+
 export function buildTransactionsFromRules(
   rules,
   {
@@ -75,6 +91,7 @@ export function buildTransactionsFromRules(
           date: dateIso,
           nom: resolveRuleNom(rule),
           description: rule.description || '',
+          durationLabel: formatRuleDuration(rule),
           compteNom: resolveRuleCompte(rule),
           montant: isCredit ? amountAbs : -amountAbs,
           iconClass: isCredit ? 'fa-solid fa-arrow-trend-up' : 'fa-solid fa-receipt',
