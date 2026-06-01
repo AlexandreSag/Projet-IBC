@@ -14,6 +14,7 @@ import Footer from './components/Footer.jsx';
 import DashboardPage from './components/DashboardPage.jsx';
 import SettingsPage from './components/SettingsPage.jsx';
 import SubscriptionPage from './components/SubscriptionPage.jsx';
+import ShareInvitationPage from './components/ShareInvitationPage.jsx';
 import { AuthProvider, requestJson, useAuth } from './context/AuthContext.jsx';
 
 const verificationRequests = new Map();
@@ -111,9 +112,11 @@ function LandingPage() {
 function AuthPage({ mode }) {
   const isRegister = mode === 'register';
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+  const comesFromShareInvitation = Boolean(location.state?.fromShareInvitation);
 
   if (!isLoading && isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={location.state?.from || '/dashboard'} replace />;
   }
 
   return (
@@ -132,15 +135,24 @@ function AuthPage({ mode }) {
           <div className="card-header">
             <h2>{isRegister ? 'Créer un compte' : 'Connexion'}</h2>
             <p className="lede small">
-              {isRegister ? 'Créez votre compte gratuit Budgie.' : 'Connectez-vous à votre compte Budgie.'}
+              {comesFromShareInvitation
+                ? 'Utilisez l’adresse email qui a reçu l’invitation pour accéder au compte partagé.'
+                : isRegister
+                  ? 'Créez votre compte gratuit Budgie.'
+                  : 'Connectez-vous à votre compte Budgie.'}
             </p>
           </div>
+          {comesFromShareInvitation && (
+            <p className="feedback info auth-context-message">
+              Après {isRegister ? 'création et vérification du compte' : 'connexion'}, vous reviendrez automatiquement sur l’invitation.
+            </p>
+          )}
           <AuthForm
             mode={mode}
             footer={
               <p className="auth-switch">
                 {isRegister ? 'Déjà un compte ?' : 'Pas encore de compte ?'}{' '}
-                <Link to={isRegister ? '/login' : '/register'}>
+                <Link to={isRegister ? '/login' : '/register'} state={location.state || null}>
                   {isRegister ? 'Se connecter' : 'Créer un compte'}
                 </Link>
               </p>
@@ -247,7 +259,7 @@ function ProtectedRoute({ children }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
   }
 
   const cleanupRequired = Boolean(user?.abonnement?.cleanupRequired);
@@ -275,9 +287,10 @@ function AppShell() {
       {!isAuthRoute && !isDashboardRoute && !isSettingsRoute && !isSubscriptionRoute && <Header />}
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<AuthPage mode="login" />} />
-        <Route path="/register" element={<AuthPage mode="register" />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/login" element={<AuthPage mode="login" />} />
+          <Route path="/register" element={<AuthPage mode="register" />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/sharing/invitation" element={<ShareInvitationPage />} />
         <Route
           path="/dashboard"
           element={

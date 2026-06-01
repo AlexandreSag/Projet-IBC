@@ -4,6 +4,7 @@ import DashboardPrevisionsTab from './dashboard/DashboardPrevisionsTab.jsx';
 import DashboardOverviewTab from './dashboard/DashboardOverviewTab.jsx';
 import DashboardTransactionsTab from './dashboard/DashboardTransactionsTab.jsx';
 import DashboardPlaceholderTab from './dashboard/DashboardPlaceholderTab.jsx';
+import DashboardSharingTab from './dashboard/DashboardSharingTab.jsx';
 import DashboardTopbar from './dashboard/DashboardTopbar.jsx';
 import {
   accountPresets,
@@ -144,6 +145,10 @@ export default function DashboardPage() {
 
     if (activeTab === 'previsions') {
       return <DashboardPrevisionsTab />;
+    }
+
+    if (activeTab === 'sharing') {
+      return <DashboardSharingTab comptes={comptes} />;
     }
 
     return <DashboardPlaceholderTab />;

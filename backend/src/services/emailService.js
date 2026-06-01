@@ -69,7 +69,44 @@ async function sendVerificationEmail({ to, verificationUrl, prenom, nom }) {
   });
 }
 
+async function sendShareInvitationEmail({
+  to,
+  invitationUrl,
+  ownerName,
+  compteNom,
+}) {
+  if (!isEmailConfigured()) {
+    throw new Error('SMTP credentials are not configured.');
+  }
+
+  const transporter = nodemailer.createTransport(getMailerConfig());
+  const displayOwner = ownerName || 'Un utilisateur Budgie';
+
+  await transporter.sendMail({
+    from: buildFromHeader(),
+    to,
+    subject: 'Invitation à consulter un compte partagé sur Budgie',
+    text: [
+      `Bonjour,`,
+      '',
+      `${displayOwner} vous invite à consulter le compte "${compteNom}" sur Budgie en lecture seule.`,
+      'Ouvrez ce lien pour accepter le partage :',
+      invitationUrl,
+      '',
+      'Le lien expire dans 7 jours.',
+    ].join('\n'),
+    html: `
+      <p>Bonjour,</p>
+      <p><strong>${displayOwner}</strong> vous invite à consulter le compte <strong>${compteNom}</strong> sur Budgie en lecture seule.</p>
+      <p>Ouvrez ce lien pour accepter le partage :</p>
+      <p><a href="${invitationUrl}">${invitationUrl}</a></p>
+      <p>Le lien expire dans 7 jours.</p>
+    `,
+  });
+}
+
 module.exports = {
   isEmailConfigured,
+  sendShareInvitationEmail,
   sendVerificationEmail,
 };

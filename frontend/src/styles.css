@@ -661,6 +661,16 @@ button:disabled {
   background-color: #fee2e2;
 }
 
+.feedback.info {
+  color: #0f5f75;
+  background-color: rgba(14, 165, 183, 0.1);
+  border: 1px solid rgba(14, 165, 183, 0.18);
+}
+
+.auth-context-message {
+  margin: 0 1.25rem;
+}
+
 .auth-footer,
 .legal,
 .auth-switch {

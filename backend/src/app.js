@@ -7,6 +7,7 @@ const comptesRoutes = require('./routes/comptes');
 const depensesRoutes = require('./routes/depenses');
 const revenusRoutes = require('./routes/revenus');
 const previsionsRoutes = require('./routes/previsions');
+const partagesRoutes = require('./routes/partages');
 
 function createApp() {
   const app = express();
@@ -31,11 +32,12 @@ function createApp() {
     }
   });
 
-  app.use('/api', authRoutes);
-  app.use('/api/comptes', comptesRoutes);
-  app.use('/api/depenses', depensesRoutes);
-  app.use('/api/revenus', revenusRoutes);
-  app.use('/api/previsions', previsionsRoutes);
+app.use('/api/partages', partagesRoutes);
+app.use('/api', authRoutes);
+app.use('/api/comptes', comptesRoutes);
+app.use('/api/depenses', depensesRoutes);
+app.use('/api/revenus', revenusRoutes);
+app.use('/api/previsions', previsionsRoutes);
 
   app.use((req, res) => {
     res.status(404).json({ error: 'Route non trouvée' });
