@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { createWalletClient, parseEther } from 'viem';
+import { createWalletClient, encodeFunctionData, erc20Abi, parseEther } from 'viem';
 import { requestJson, useAuth } from '../context/AuthContext.jsx';
 import {
   anvilLocalChain,
@@ -8,11 +8,14 @@ import {
   createBrowserWalletClient,
   getEthereumProvider,
 } from '../lib/walletConfig.js';
+import { subscriptionCoreAbi } from '../lib/subscriptionContracts.js';
 import SubscriptionBenefitsSection from './subscription/SubscriptionBenefitsSection.jsx';
 import SubscriptionCurrentCard from './subscription/SubscriptionCurrentCard.jsx';
 import SubscriptionPaymentModal from './subscription/SubscriptionPaymentModal.jsx';
 import SubscriptionPlansSection from './subscription/SubscriptionPlansSection.jsx';
 import './subscription/SubscriptionPage.css';
+
+const ETH_DURATION_MONTH_OPTIONS = [1, 3, 6, 12];
 
 export default function SubscriptionPage() {
   const { abonnement, isPremium, refreshSession } = useAuth();
@@ -22,8 +25,9 @@ export default function SubscriptionPage() {
   const [infoMessage, setInfoMessage] = useState(null);
   const [isLoadingPaymentIntent, setIsLoadingPaymentIntent] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('eth');
+  const [ethDurationMonths, setEthDurationMonths] = useState(1);
   const [paymentIntent, setPaymentIntent] = useState(null);
-  const [openPaymentIntent, setOpenPaymentIntent] = useState(null);
   const [walletAddress, setWalletAddress] = useState(null);
   const [walletChainId, setWalletChainId] = useState(null);
   const [walletSessionDisconnected, setWalletSessionDisconnected] = useState(false);
@@ -33,11 +37,13 @@ export default function SubscriptionPage() {
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
   const [isFinalizingPayment, setIsFinalizingPayment] = useState(false);
   const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
+  const [isSubmittingAutoRenewal, setIsSubmittingAutoRenewal] = useState(false);
   const [paymentHash, setPaymentHash] = useState(null);
 
   const isConnected = Boolean(walletAddress) && !walletSessionDisconnected;
   const isOnAnvilChain = walletChainId === anvilLocalChain.id;
   const activePlan = status?.abonnement || abonnement;
+  const renewal = activePlan?.renewal || null;
 
   const loadStatus = useCallback(async (signal) => {
     setLoading(true);
@@ -64,26 +70,22 @@ export default function SubscriptionPage() {
     return () => controller.abort();
   }, [loadStatus]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const prepareEthPaymentIntent = useCallback(async (durationMonths) => {
+    setIsLoadingPaymentIntent(true);
+    setError(null);
 
-    async function loadOpenPaymentIntent() {
-      try {
-        const data = await requestJson('/api/me/abonnement/payment-intent/open', { method: 'GET' });
-        if (!cancelled) {
-          setOpenPaymentIntent(data?.paymentIntent || null);
-        }
-      } catch {
-        if (!cancelled) {
-          setOpenPaymentIntent(null);
-        }
-      }
+    try {
+      const data = await requestJson('/api/me/abonnement/payment-intent', {
+        method: 'POST',
+        body: JSON.stringify({ planCode: 'premium', cryptoCode: 'eth', durationMonths }),
+      });
+      setPaymentIntent(data?.paymentIntent || null);
+    } catch (paymentError) {
+      setPaymentIntent(null);
+      setError(paymentError.message || 'Impossible de préparer le paiement Ethereum.');
+    } finally {
+      setIsLoadingPaymentIntent(false);
     }
-
-    void loadOpenPaymentIntent();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   useEffect(() => {
@@ -186,31 +188,22 @@ export default function SubscriptionPage() {
       return;
     }
 
-    setIsLoadingPaymentIntent(true);
     setError(null);
     setInfoMessage(null);
-
-    try {
-      const data = await requestJson('/api/me/abonnement/payment-intent', {
-        method: 'POST',
-        body: JSON.stringify({ planCode: 'premium', cryptoCode: 'eth' }),
-      });
-      setPaymentIntent(data?.paymentIntent || null);
-      setOpenPaymentIntent(data?.paymentIntent || null);
-      setPaymentHash(null);
-      setIsPaymentConfirmed(false);
-      setShowPaymentModal(true);
-    } catch (paymentError) {
-      setError(paymentError.message || 'Impossible de préparer le paiement Ethereum.');
-    } finally {
-      setIsLoadingPaymentIntent(false);
-    }
-  };
-
-  const handleResumePayment = () => {
-    setPaymentIntent(openPaymentIntent);
+    setSelectedPaymentMethod('eth');
+    setEthDurationMonths(1);
+    setPaymentHash(null);
+    setIsPaymentConfirmed(false);
     setShowPaymentModal(true);
   };
+
+  useEffect(() => {
+    if (!showPaymentModal || selectedPaymentMethod !== 'eth' || isPremium) {
+      return;
+    }
+
+    void prepareEthPaymentIntent(ethDurationMonths);
+  }, [ethDurationMonths, isPremium, prepareEthPaymentIntent, selectedPaymentMethod, showPaymentModal]);
 
   const handleClosePaymentModal = () => {
     setShowPaymentModal(false);
@@ -235,7 +228,7 @@ export default function SubscriptionPage() {
 
   const handlePaymentSent = () => {
     setShowPaymentModal(false);
-    setInfoMessage('La transaction a été envoyée. Le statut Premium est en cours de synchronisation.');
+    setInfoMessage('Transaction envoyée, activation du Premium en cours.');
   };
 
   const handleConnectWallet = async () => {
@@ -245,7 +238,7 @@ export default function SubscriptionPage() {
 
     const provider = getEthereumProvider();
     if (!provider) {
-      setError('Un wallet Ethereum compatible est requis pour effectuer ce paiement. MetaMask est recommandé.');
+      setError('Connectez un wallet pour continuer.');
       return;
     }
 
@@ -257,7 +250,7 @@ export default function SubscriptionPage() {
       const chainHex = await provider.request({ method: 'eth_chainId' });
       setWalletAddress(Array.isArray(accounts) && accounts[0] ? accounts[0] : null);
       setWalletChainId(chainHex ? Number.parseInt(chainHex, 16) : null);
-      setInfoMessage('Wallet connecté. Vous pouvez maintenant lancer le paiement.');
+      setInfoMessage('Wallet connecté avec succès.');
     } catch (walletError) {
       setError(walletError.message || 'Impossible de connecter le wallet.');
     } finally {
@@ -268,7 +261,7 @@ export default function SubscriptionPage() {
   const handleSwitchWalletAccount = async () => {
     const provider = getEthereumProvider();
     if (!provider) {
-      setError('Un wallet Ethereum compatible est requis pour sélectionner un autre compte.');
+      setError('Connectez un wallet pour choisir un compte.');
       return;
     }
 
@@ -284,9 +277,9 @@ export default function SubscriptionPage() {
       const chainHex = await provider.request({ method: 'eth_chainId' });
       setWalletAddress(Array.isArray(accounts) && accounts[0] ? accounts[0] : null);
       setWalletChainId(chainHex ? Number.parseInt(chainHex, 16) : null);
-      setInfoMessage('Compte du wallet mis à jour.');
+      setInfoMessage('Compte wallet mis à jour avec succès.');
     } catch (walletError) {
-      setError(walletError.message || 'Impossible de changer de compte sur le wallet.');
+      setError(walletError.message || 'Impossible de changer de compte.');
     } finally {
       setIsConnectingWallet(false);
     }
@@ -296,7 +289,72 @@ export default function SubscriptionPage() {
     setWalletSessionDisconnected(true);
     setWalletAddress(null);
     setWalletChainId(null);
-    setInfoMessage('Wallet déconnecté côté application. Le wallet reste ouvert dans le navigateur.');
+    setInfoMessage('Wallet déconnecté de l’application.');
+  };
+
+  const ensureWalletReady = async () => {
+    const provider = getEthereumProvider();
+    if (!provider) {
+      throw new Error('Connectez un wallet pour continuer.');
+    }
+
+    if (!isConnected) {
+      setWalletSessionDisconnected(false);
+      const accounts = await provider.request({ method: 'eth_requestAccounts' });
+      const chainHex = await provider.request({ method: 'eth_chainId' });
+      setWalletAddress(Array.isArray(accounts) && accounts[0] ? accounts[0] : null);
+      setWalletChainId(chainHex ? Number.parseInt(chainHex, 16) : null);
+    }
+
+    if (walletChainId !== anvilLocalChain.id) {
+      setIsSwitchingChain(true);
+      const chainHex = `0x${anvilLocalChain.id.toString(16)}`;
+
+      try {
+        await provider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: chainHex }],
+        });
+      } catch (switchError) {
+        if (switchError?.code === 4902) {
+          await provider.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: chainHex,
+              chainName: anvilLocalChain.name,
+              nativeCurrency: anvilLocalChain.nativeCurrency,
+              rpcUrls: anvilLocalChain.rpcUrls.default.http,
+            }],
+          });
+        } else {
+          throw switchError;
+        }
+      } finally {
+        setIsSwitchingChain(false);
+      }
+
+      const refreshedChainHex = await provider.request({ method: 'eth_chainId' });
+      setWalletChainId(refreshedChainHex ? Number.parseInt(refreshedChainHex, 16) : null);
+    }
+
+    const accounts = await provider.request({ method: 'eth_accounts' });
+    const account = Array.isArray(accounts) && accounts[0] ? accounts[0] : walletAddress;
+
+    if (!account) {
+      throw new Error('Aucun compte wallet disponible.');
+    }
+
+    const walletClient = createWalletClient({
+      chain: anvilLocalChain,
+      transport: createBrowserWalletClient(),
+    });
+
+    if (!walletClient) {
+      throw new Error('Impossible d’initialiser le wallet Ethereum.');
+    }
+
+    setWalletAddress(account);
+    return { account, walletClient };
   };
 
   const handleWalletPayment = async () => {
@@ -304,64 +362,8 @@ export default function SubscriptionPage() {
       return;
     }
 
-    const provider = getEthereumProvider();
-    if (!provider) {
-      setError('Un wallet Ethereum compatible est requis pour effectuer ce paiement. MetaMask est recommandé.');
-      return;
-    }
-
     try {
-      if (!isConnected) {
-        await handleConnectWallet();
-        return;
-      }
-
-      if (!isOnAnvilChain) {
-        setIsSwitchingChain(true);
-        const chainHex = `0x${anvilLocalChain.id.toString(16)}`;
-
-        try {
-          await provider.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: chainHex }],
-          });
-        } catch (switchError) {
-          if (switchError?.code === 4902) {
-            await provider.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: chainHex,
-                chainName: anvilLocalChain.name,
-                nativeCurrency: anvilLocalChain.nativeCurrency,
-                rpcUrls: anvilLocalChain.rpcUrls.default.http,
-              }],
-            });
-          } else {
-            throw switchError;
-          }
-        } finally {
-          setIsSwitchingChain(false);
-        }
-
-        const refreshedChainHex = await provider.request({ method: 'eth_chainId' });
-        setWalletChainId(refreshedChainHex ? Number.parseInt(refreshedChainHex, 16) : null);
-      }
-
-      const accounts = await provider.request({ method: 'eth_accounts' });
-      const account = Array.isArray(accounts) && accounts[0] ? accounts[0] : walletAddress;
-
-      if (!account) {
-        throw new Error('Aucun compte wallet disponible pour envoyer la transaction.');
-      }
-
-      const walletClient = createWalletClient({
-        chain: anvilLocalChain,
-        transport: createBrowserWalletClient(),
-      });
-
-      if (!walletClient) {
-        throw new Error('Impossible d’initialiser le wallet Ethereum.');
-      }
+      const { account, walletClient } = await ensureWalletReady();
 
       setIsSendingTransaction(true);
       setIsPaymentConfirmed(false);
@@ -373,7 +375,7 @@ export default function SubscriptionPage() {
 
       setPaymentHash(hash);
       setWalletAddress(account);
-      setInfoMessage('Transaction envoyée. En attente de confirmation Ethereum.');
+      setInfoMessage('Transaction envoyée, en attente de confirmation.');
 
       setIsConfirmingPayment(true);
       await anvilPublicClient.waitForTransactionReceipt({ hash });
@@ -390,9 +392,8 @@ export default function SubscriptionPage() {
 
       await refreshSession();
       await loadStatus();
-      setOpenPaymentIntent(null);
       setShowPaymentModal(false);
-      setInfoMessage(confirmation.message || `Transaction Ethereum confirmée: ${hash.slice(0, 10)}...`);
+      setInfoMessage(confirmation.message || `Transaction confirmée : ${hash.slice(0, 10)}...`);
     } catch (txError) {
       setError(txError.message || 'Impossible d’envoyer la transaction Ethereum.');
     } finally {
@@ -400,6 +401,123 @@ export default function SubscriptionPage() {
       setIsSwitchingChain(false);
       setIsConfirmingPayment(false);
       setIsFinalizingPayment(false);
+    }
+  };
+
+  const runUsdcAutoRenewFlow = async ({ activatePremiumNow = false } = {}) => {
+    const config = renewal?.config;
+    if (!renewal?.autoRenewalAvailable || !config?.tokenAddress || !config?.subscriptionCoreAddress) {
+      setError('Le paiement USDC avec renouvellement automatique est indisponible.');
+      return;
+    }
+
+    try {
+      setError(null);
+      setInfoMessage(null);
+      setIsSubmittingAutoRenewal(true);
+
+      const { account, walletClient } = await ensureWalletReady();
+      const monthlyPriceUnits = BigInt(config.monthlyPriceUnits || '0');
+      const approvalMonths = BigInt(config.approvalMonths || 12);
+      const approveAmount = monthlyPriceUnits * approvalMonths;
+
+      const approveHash = await walletClient.sendTransaction({
+        account,
+        to: config.tokenAddress,
+        data: encodeFunctionData({
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [config.subscriptionCoreAddress, approveAmount],
+        }),
+      });
+      await anvilPublicClient.waitForTransactionReceipt({ hash: approveHash });
+
+      const enableHash = await walletClient.sendTransaction({
+        account,
+        to: config.subscriptionCoreAddress,
+        data: encodeFunctionData({
+          abi: subscriptionCoreAbi,
+          functionName: 'enableAutoRenew',
+          args: [monthlyPriceUnits],
+        }),
+      });
+      await anvilPublicClient.waitForTransactionReceipt({ hash: enableHash });
+
+      const endpoint = activatePremiumNow
+        ? '/api/me/abonnement/usdc-auto-subscription'
+        : '/api/me/abonnement/renewal-settings/activate';
+
+      const response = await requestJson(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({
+          walletAddress: account,
+          smartContractAddress: config.subscriptionCoreAddress,
+          mandateReference: enableHash,
+        }),
+      });
+
+      await refreshSession();
+      await loadStatus();
+      setShowPaymentModal(false);
+      setInfoMessage(
+        response?.message
+          || (activatePremiumNow
+            ? `Paiement ${config.tokenSymbol} confirmé, votre compte Premium avec renouvellement automatique est actif.`
+            : `Le renouvellement automatique en ${config.tokenSymbol} est activé.`),
+      );
+    } catch (renewalError) {
+      setError(
+        renewalError.message
+          || (activatePremiumNow
+            ? 'Impossible de finaliser le paiement USDC et d’activer le renouvellement automatique.'
+            : 'Impossible d’activer le renouvellement automatique.'),
+      );
+    } finally {
+      setIsSubmittingAutoRenewal(false);
+    }
+  };
+
+  const handleUsdcSubscriptionAction = async () => {
+    if (isPremium) {
+      return;
+    }
+
+    await runUsdcAutoRenewFlow({ activatePremiumNow: true });
+  };
+
+  const handleAddUsdcToWallet = async () => {
+    const provider = getEthereumProvider();
+    const config = renewal?.config;
+
+    if (!provider) {
+      setError('Connectez un wallet pour continuer.');
+      return;
+    }
+
+    if (!config?.tokenAddress) {
+      setError('Token USDC indisponible.');
+      return;
+    }
+
+    try {
+      setError(null);
+      const wasAdded = await provider.request({
+        method: 'wallet_watchAsset',
+        params: {
+          type: 'ERC20',
+          options: {
+            address: config.tokenAddress,
+            symbol: config.tokenSymbol || 'USDC',
+            decimals: Number(config.tokenDecimals || 6),
+          },
+        },
+      });
+
+      if (wasAdded) {
+        setInfoMessage(`${config.tokenSymbol || 'USDC'} a bien été ajouté à MetaMask.`);
+      }
+    } catch (walletError) {
+      setError(walletError.message || 'Impossible d’ajouter USDC dans MetaMask.');
     }
   };
 
@@ -432,9 +550,8 @@ export default function SubscriptionPage() {
         <SubscriptionPlansSection
           isPremium={isPremium}
           isLoadingPaymentIntent={isLoadingPaymentIntent}
-          openPaymentIntent={openPaymentIntent}
+          isLoadingUsdcSubscription={isSubmittingAutoRenewal}
           onPremiumAction={handlePremiumAction}
-          onResumePayment={handleResumePayment}
         />
 
         <SubscriptionBenefitsSection />
@@ -442,6 +559,12 @@ export default function SubscriptionPage() {
 
       <SubscriptionPaymentModal
         paymentIntent={showPaymentModal ? paymentIntent : null}
+        activePlan={activePlan}
+        renewal={renewal}
+        selectedMethod={showPaymentModal ? selectedPaymentMethod : null}
+        onMethodChange={setSelectedPaymentMethod}
+        durationMonths={ethDurationMonths}
+        onDurationChange={(value) => setEthDurationMonths(ETH_DURATION_MONTH_OPTIONS.includes(value) ? value : 1)}
         walletAddress={walletAddress}
         isOnAnvilChain={isOnAnvilChain}
         isConnected={isConnected}
@@ -451,13 +574,18 @@ export default function SubscriptionPage() {
         isConfirmingPayment={isConfirmingPayment}
         isFinalizingPayment={isFinalizingPayment}
         isPaymentConfirmed={isPaymentConfirmed}
+        isLoadingPaymentIntent={isLoadingPaymentIntent}
+        isSubmittingUsdc={isSubmittingAutoRenewal}
         paymentHash={paymentHash}
         onClose={handleClosePaymentModal}
         onCopyAddress={handleCopyPaymentAddress}
+        onConnectWallet={handleConnectWallet}
         onSwitchWalletAccount={handleSwitchWalletAccount}
         onDisconnectWalletSession={handleDisconnectWalletSession}
-        onPaymentAction={isConnected ? handleWalletPayment : handleConnectWallet}
+        onEthPaymentAction={isConnected ? handleWalletPayment : handleConnectWallet}
+        onUsdcPaymentAction={handleUsdcSubscriptionAction}
         onPaymentSent={handlePaymentSent}
+        onAddToken={handleAddUsdcToWallet}
       />
     </div>
   );

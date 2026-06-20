@@ -19,9 +19,8 @@ function FeatureList({ features, premium = false }) {
 export default function SubscriptionPlansSection({
   isPremium,
   isLoadingPaymentIntent,
-  openPaymentIntent,
+  isLoadingUsdcSubscription,
   onPremiumAction,
-  onResumePayment,
 }) {
   return (
     <section className="subscription-plans-section">
@@ -81,20 +80,10 @@ export default function SubscriptionPlansSection({
             type="button"
             className="btn primary subscription-plan-action"
             onClick={onPremiumAction}
-            disabled={isPremium || isLoadingPaymentIntent}
+            disabled={isPremium || isLoadingPaymentIntent || isLoadingUsdcSubscription}
           >
-            {isPremium ? 'Plan actif' : isLoadingPaymentIntent ? 'Préparation...' : 'Payer avec Ethereum'}
+            {isPremium ? 'Plan actif' : isLoadingPaymentIntent ? 'Préparation...' : 'Payer'}
           </button>
-
-          {!isPremium && openPaymentIntent && (
-            <button
-              type="button"
-              className="btn ghost small subscription-plan-secondary-action"
-              onClick={onResumePayment}
-            >
-              Reprendre le paiement en cours
-            </button>
-          )}
         </article>
       </div>
     </section>

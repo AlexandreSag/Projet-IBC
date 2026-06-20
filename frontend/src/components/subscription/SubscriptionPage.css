@@ -57,14 +57,16 @@
 
 .subscription-current-card,
 .subscription-benefits-card,
-.subscription-plan-card {
+.subscription-plan-card,
+.subscription-auto-renew-card {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(14, 165, 183, 0.22);
   box-shadow: 0 24px 64px rgba(14, 165, 183, 0.08);
 }
 
 .subscription-current-card,
-.subscription-benefits-card {
+.subscription-benefits-card,
+.subscription-auto-renew-card {
   border-radius: 24px;
   padding: 1.5rem;
 }
@@ -361,6 +363,73 @@
   gap: 1.2rem;
 }
 
+.subscription-auto-renew-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.subscription-auto-renew-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.subscription-auto-renew-head h2 {
+  margin: 0.5rem 0 0.25rem;
+  font-size: clamp(1.5rem, 1.8vw + 1rem, 2rem);
+}
+
+.subscription-auto-renew-head p {
+  margin: 0;
+  color: var(--couleur-texte-2);
+}
+
+.subscription-auto-renew-grid {
+  --page-grid-gap: 1rem;
+}
+
+.subscription-auto-renew-panel {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  padding: 1.1rem;
+  background: rgba(248, 252, 255, 0.75);
+  min-width: 0;
+}
+
+.subscription-auto-renew-panel h3 {
+  margin: 0 0 0.9rem;
+  font-size: 1.05rem;
+}
+
+.subscription-auto-renew-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.45rem 0;
+  color: var(--couleur-texte-2);
+}
+
+.subscription-auto-renew-row strong {
+  color: var(--couleur-texte);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.subscription-auto-renew-note {
+  margin: 0;
+  color: var(--couleur-texte-2);
+}
+
+.subscription-auto-renew-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
 .subscription-benefits-grid {
   --page-grid-gap: 1rem;
 }
@@ -412,7 +481,8 @@
 @media (max-width: 980px) {
   .subscription-current-metrics,
   .subscription-plan-grid,
-  .subscription-benefits-grid {
+  .subscription-benefits-grid,
+  .subscription-auto-renew-grid {
     grid-template-columns: 1fr;
   }
 
@@ -427,11 +497,12 @@
 @media (max-width: 720px) {
   .subscription-topbar { padding: 0.85rem 1rem; grid-template-columns: auto 1fr; }
   .subscription-topbar-label { display: none; }
-  .subscription-current-card, .subscription-benefits-card, .subscription-plan-card { padding: 1.2rem; border-radius: 20px; }
+  .subscription-current-card, .subscription-benefits-card, .subscription-plan-card, .subscription-auto-renew-card { padding: 1.2rem; border-radius: 20px; }
   .subscription-current-head { flex-direction: column; }
   .subscription-current-metrics { gap: 0.9rem; }
   .subscription-plan-card-head { align-items: flex-start; }
   .subscription-plan-action { width: 100%; }
+  .subscription-auto-renew-head { flex-direction: column; }
 }
 
 @media (max-width: 560px) {
@@ -450,13 +521,16 @@
   .subscription-feature-list { gap: 0.7rem; }
   .subscription-benefit-item { padding: 0; }
   .subscription-benefit-item h3 { font-size: 1.35rem; }
+  .subscription-auto-renew-row { flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+  .subscription-auto-renew-row strong { text-align: left; }
 }
 
 @media (max-width: 420px) {
   .subscription-topbar { padding: 0.75rem; }
-  .subscription-current-card, .subscription-benefits-card, .subscription-plan-card { padding: 1rem; border-radius: 18px; }
+  .subscription-current-card, .subscription-benefits-card, .subscription-plan-card, .subscription-auto-renew-card { padding: 1rem; border-radius: 18px; }
   .subscription-status-badge { width: 100%; justify-content: center; }
   .subscription-plan-card-head h3 { font-size: 1.6rem; }
   .subscription-plan-price-block strong { font-size: 2.45rem; }
   .subscription-plan-crypto-price { font-size: 0.92rem; }
+  .subscription-auto-renew-actions .btn { width: 100%; }
 }

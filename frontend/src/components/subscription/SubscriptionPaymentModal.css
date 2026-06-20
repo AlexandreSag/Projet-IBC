@@ -24,6 +24,28 @@
   color: var(--couleur-texte-2);
 }
 
+.subscription-payment-methods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.subscription-payment-method {
+  min-height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(244, 247, 250, 0.92);
+  color: var(--couleur-texte);
+  font-weight: 700;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.subscription-payment-method.active {
+  border-color: rgba(14, 165, 183, 0.5);
+  background: linear-gradient(135deg, rgba(14, 165, 183, 0.16), rgba(14, 165, 233, 0.1));
+  color: var(--couleur-primaire-texte);
+}
+
 .subscription-payment-wallet-bar {
   display: flex;
   flex-direction: column;
@@ -91,6 +113,54 @@
   font-size: 1.15rem;
 }
 
+.subscription-payment-duration-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
+
+.subscription-payment-duration-row label {
+  font-weight: 600;
+}
+
+.subscription-payment-duration-row select {
+  min-width: 170px;
+  padding: 0.72rem 2.8rem 0.72rem 0.95rem;
+  border-radius: 14px;
+  border: 1px solid rgba(14, 165, 183, 0.26);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(236, 253, 255, 0.96)),
+    linear-gradient(45deg, transparent 50%, rgba(14, 165, 183, 0.9) 50%),
+    linear-gradient(135deg, rgba(14, 165, 183, 0.9) 50%, transparent 50%);
+  background-repeat: no-repeat;
+  background-position:
+    0 0,
+    calc(100% - 1.15rem) calc(50% - 0.16rem),
+    calc(100% - 0.8rem) calc(50% - 0.16rem);
+  background-size:
+    100% 100%,
+    0.4rem 0.4rem,
+    0.4rem 0.4rem;
+  color: var(--couleur-texte);
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.subscription-payment-duration-row select:hover {
+  border-color: rgba(14, 165, 183, 0.45);
+}
+
+.subscription-payment-duration-row select:focus {
+  border-color: rgba(14, 165, 183, 0.72);
+  box-shadow: 0 0 0 4px rgba(14, 165, 183, 0.14);
+}
+
 .subscription-payment-detail-grid {
   display: grid;
   gap: 0.6rem;
@@ -144,6 +214,10 @@
   font-size: 0.92rem;
 }
 
+.subscription-payment-inline-actions {
+  margin-top: 0.9rem;
+}
+
 .subscription-payment-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -180,6 +254,8 @@
   .subscription-payment-summary-head,
   .subscription-payment-detail-row,
   .subscription-payment-wallet-actions { flex-direction: column; align-items: flex-start; }
+  .subscription-payment-methods { grid-template-columns: 1fr; }
+  .subscription-payment-duration-row { flex-direction: column; align-items: flex-start; }
 }
 
 @media (max-width: 560px) {
@@ -187,6 +263,7 @@
   .subscription-payment-actions { grid-template-columns: 1fr; }
   .subscription-payment-copy-btn { width: 100%; }
   .subscription-payment-wallet-actions .btn { width: 100%; }
+  .subscription-payment-duration-row select { width: 100%; min-width: 0; }
 }
 
 @media (max-width: 420px) {

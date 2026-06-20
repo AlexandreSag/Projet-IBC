@@ -1,12 +1,10 @@
 import { createPublicClient, custom, defineChain, http } from 'viem';
 
-const chainId = Number(import.meta.env.VITE_ETH_CHAIN_ID || 31337);
-const chainName = import.meta.env.VITE_ETH_CHAIN_NAME || 'Anvil Local';
 const rpcUrl = import.meta.env.VITE_ETH_RPC_URL || 'http://localhost:8545';
 
 export const anvilLocalChain = defineChain({
-  id: chainId,
-  name: chainName,
+  id: 31337,
+  name: 'Anvil Mainnet Fork',
   nativeCurrency: {
     decimals: 18,
     name: 'Ether',
