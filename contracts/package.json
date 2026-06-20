@@ -1,0 +1,15 @@
+{
+  "name": "ibc-contracts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "rm -rf artifacts",
+    "compile": "node scripts/compile.mjs",
+    "deploy:fork": "node scripts/deploy-subscription-core.mjs",
+    "fund:fork": "node scripts/fund-fork-wallet.mjs"
+  },
+  "devDependencies": {
+    "solc": "^0.8.30",
+    "viem": "^2.51.2"
+  }
+}
