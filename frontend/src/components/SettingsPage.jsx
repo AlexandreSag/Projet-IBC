@@ -12,6 +12,7 @@ import './settings/SettingsPage.css';
 
 const PASSWORD_HINT =
   '12 caractères minimum avec majuscule, minuscule, chiffre et caractère spécial (! @ # ? % & *).';
+const DEFAULT_VISIBLE_PAYMENT_COUNT = 5;
 
 function isStrongPassword(password) {
   if (typeof password !== 'string' || password.length < 12) return false;
@@ -40,14 +41,16 @@ export default function SettingsPage() {
   const [passwordMessage, setPasswordMessage] = useState(null);
   const [abonnementStatus, setAbonnementStatus] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState([]);
-  const [openPaymentIntent, setOpenPaymentIntent] = useState(null);
   const [abonnementError, setAbonnementError] = useState(null);
   const [loadingAbonnementStatus, setLoadingAbonnementStatus] = useState(true);
   const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(true);
   const [isProfileSubmitting, setIsProfileSubmitting] = useState(false);
   const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
+  const [isSubmittingRenewalToggle, setIsSubmittingRenewalToggle] = useState(false);
   const [isLoadingDowngradePreview, setIsLoadingDowngradePreview] = useState(false);
   const [isSubmittingDowngrade, setIsSubmittingDowngrade] = useState(false);
+  const [expandedPaymentIds, setExpandedPaymentIds] = useState([]);
+  const [visiblePaymentCount, setVisiblePaymentCount] = useState(DEFAULT_VISIBLE_PAYMENT_COUNT);
   const [downgradePreview, setDowngradePreview] = useState(null);
   const [showDowngradeModal, setShowDowngradeModal] = useState(false);
   const [hasAutoOpenedCleanup, setHasAutoOpenedCleanup] = useState(false);
@@ -74,22 +77,19 @@ export default function SettingsPage() {
       setAbonnementError(null);
 
       try {
-        const [statusData, paymentsData, openPaymentData] = await Promise.all([
+        const [statusData, paymentsData] = await Promise.all([
           requestJson('/api/me/abonnement-status', { method: 'GET' }),
           requestJson('/api/me/abonnement/payments?limit=10', { method: 'GET' }),
-          requestJson('/api/me/abonnement/payment-intent/open', { method: 'GET' }),
         ]);
 
         if (!cancelled) {
           setAbonnementStatus(statusData);
           setPaymentHistory(Array.isArray(paymentsData?.payments) ? paymentsData.payments : []);
-          setOpenPaymentIntent(openPaymentData?.paymentIntent || null);
         }
       } catch (error) {
         if (!cancelled) {
           setAbonnementStatus(null);
           setPaymentHistory([]);
-          setOpenPaymentIntent(null);
           setAbonnementError(error.message || 'Impossible de charger les informations d’abonnement.');
         }
       } finally {
@@ -164,18 +164,46 @@ export default function SettingsPage() {
     [paymentHistory],
   );
 
+  const visibleConfirmedPaymentHistory = useMemo(
+    () => confirmedPaymentHistory.slice(0, visiblePaymentCount),
+    [confirmedPaymentHistory, visiblePaymentCount],
+  );
+
+  useEffect(() => {
+    if (!confirmedPaymentHistory.length) {
+      setExpandedPaymentIds([]);
+      setVisiblePaymentCount(DEFAULT_VISIBLE_PAYMENT_COUNT);
+      return;
+    }
+
+    setVisiblePaymentCount((current) => Math.min(
+      Math.max(current, DEFAULT_VISIBLE_PAYMENT_COUNT),
+      confirmedPaymentHistory.length,
+    ));
+
+    setExpandedPaymentIds((current) => {
+      const validIds = new Set(confirmedPaymentHistory.map((payment) => payment.id));
+      const filtered = current.filter((id) => validIds.has(id));
+
+      if (filtered.length > 0) {
+        return filtered;
+      }
+
+      return [confirmedPaymentHistory[0].id];
+    });
+  }, [confirmedPaymentHistory]);
+
   const statusAbonnement = abonnementStatus?.abonnement || abonnement;
+  const renewalStatus = statusAbonnement?.renewal || null;
 
   const reloadSubscriptionData = async () => {
-    const [statusData, paymentsData, openPaymentData] = await Promise.all([
+    const [statusData, paymentsData] = await Promise.all([
       requestJson('/api/me/abonnement-status', { method: 'GET' }),
       requestJson('/api/me/abonnement/payments?limit=10', { method: 'GET' }),
-      requestJson('/api/me/abonnement/payment-intent/open', { method: 'GET' }),
     ]);
 
     setAbonnementStatus(statusData);
     setPaymentHistory(Array.isArray(paymentsData?.payments) ? paymentsData.payments : []);
-    setOpenPaymentIntent(openPaymentData?.paymentIntent || null);
   };
 
   const handleOpenDowngradeFlow = async () => {
@@ -255,6 +283,51 @@ export default function SettingsPage() {
     } finally {
       setIsSubmittingDowngrade(false);
     }
+  };
+
+  const handleDisableAutoRenewal = async () => {
+    setIsSubmittingRenewalToggle(true);
+    setAbonnementError(null);
+
+    try {
+      await requestJson('/api/me/abonnement/renewal-settings', {
+        method: 'PUT',
+        body: JSON.stringify({ mode: 'manual' }),
+      });
+      await reloadSubscriptionData();
+    } catch (error) {
+      setAbonnementError(error.message || 'Impossible de désactiver le renouvellement automatique.');
+    } finally {
+      setIsSubmittingRenewalToggle(false);
+    }
+  };
+
+  const handleTogglePaymentDetails = (paymentId) => {
+    setExpandedPaymentIds((current) => (
+      current.includes(paymentId)
+        ? current.filter((id) => id !== paymentId)
+        : [...current, paymentId]
+    ));
+  };
+
+  const handleToggleAllPayments = () => {
+    if (!confirmedPaymentHistory.length) {
+      return;
+    }
+
+    setExpandedPaymentIds((current) => (
+      current.length === confirmedPaymentHistory.length
+        ? []
+        : confirmedPaymentHistory.map((payment) => payment.id)
+    ));
+  };
+
+  const handleToggleVisiblePayments = () => {
+    setVisiblePaymentCount((current) => (
+      current >= confirmedPaymentHistory.length
+        ? DEFAULT_VISIBLE_PAYMENT_COUNT
+        : confirmedPaymentHistory.length
+    ));
   };
 
   const handleProfileSubmit = async (event) => {
@@ -410,6 +483,25 @@ export default function SettingsPage() {
                   </div>
                 )}
 
+                {renewalStatus?.autoRenewalReady && (
+                  <div className="settings-renewal-card info-card">
+                    <div>
+                      <strong>Renouvellement automatique actif</strong>
+                      <p className="settings-subtle-text">
+                        Le prochain prélèvement est prévu le {formatDateTime(renewalStatus.nextRenewalAt)}.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn ghost small"
+                      onClick={handleDisableAutoRenewal}
+                      disabled={isSubmittingRenewalToggle}
+                    >
+                      {isSubmittingRenewalToggle ? 'Désactivation...' : 'Désactiver le renouvellement automatique'}
+                    </button>
+                  </div>
+                )}
+
                 <div className="settings-quota-grid info-card-grid">
                   <article className="settings-quota-card info-card">
                     <strong>Comptes</strong>
@@ -454,28 +546,32 @@ export default function SettingsPage() {
                   <div className="settings-payment-history-head">
                     <div>
                       <h3>Historique des paiements</h3>
-                      <p className="settings-subtle-text">
-                        Retrouvez ici vos paiements Premium confirmés.
-                      </p>
+                    </div>
+                    <div className="settings-payment-history-actions">
+                      {confirmedPaymentHistory.length > DEFAULT_VISIBLE_PAYMENT_COUNT && (
+                        <button
+                          type="button"
+                          className="btn ghost small"
+                          onClick={handleToggleVisiblePayments}
+                        >
+                          {visiblePaymentCount >= confirmedPaymentHistory.length
+                            ? 'Afficher moins de transactions'
+                            : `Afficher ${confirmedPaymentHistory.length - visiblePaymentCount} transaction${confirmedPaymentHistory.length - visiblePaymentCount > 1 ? 's' : ''} de plus`}
+                        </button>
+                      )}
+                      {visibleConfirmedPaymentHistory.length > 1 && (
+                        <button
+                          type="button"
+                          className="btn ghost small"
+                          onClick={handleToggleAllPayments}
+                        >
+                          {expandedPaymentIds.filter((id) => visibleConfirmedPaymentHistory.some((payment) => payment.id === id)).length === visibleConfirmedPaymentHistory.length
+                            ? 'Réduire les détails'
+                            : 'Déplier les détails'}
+                        </button>
+                      )}
                     </div>
                   </div>
-
-                  {openPaymentIntent && (
-                    <article className="settings-payment-open-card info-card">
-                      <div>
-                        <strong>Paiement en cours</strong>
-                        <p className="settings-subtle-text">
-                          Créé le {formatDateTime(openPaymentIntent.createdAt)}. Vous pouvez le reprendre depuis la page abonnement.
-                        </p>
-                      </div>
-                      <div className="settings-payment-open-meta">
-                        <span className="settings-payment-status pending">En attente</span>
-                        <Link to="/subscription" className="btn primary small">
-                          Reprendre le paiement
-                        </Link>
-                      </div>
-                    </article>
-                  )}
 
                   <div className="settings-payment-stats info-card-grid">
                     <article className="info-card">
@@ -492,7 +588,7 @@ export default function SettingsPage() {
                     <p className="settings-subtle-text">Chargement de l’historique des paiements...</p>
                   ) : confirmedPaymentHistory.length ? (
                     <div className="settings-payment-list">
-                      {confirmedPaymentHistory.map((payment) => (
+                      {visibleConfirmedPaymentHistory.map((payment) => (
                         <article key={payment.id} className="settings-payment-item info-card">
                           <div className="settings-payment-item-head">
                             <div>
@@ -501,22 +597,35 @@ export default function SettingsPage() {
                                 {formatDateTime(payment.confirmedAt || payment.createdAt)}
                               </p>
                             </div>
-                            <span className={`settings-payment-status ${payment.status}`}>
-                              {payment.status}
-                            </span>
+                            <div className="settings-payment-item-actions">
+                              <span className={`settings-payment-status ${payment.status}`}>
+                                {payment.status}
+                              </span>
+                              <button
+                                type="button"
+                                className="btn ghost small"
+                                onClick={() => handleTogglePaymentDetails(payment.id)}
+                              >
+                                {expandedPaymentIds.includes(payment.id) ? 'Réduire' : 'Déplier'}
+                              </button>
+                            </div>
                           </div>
 
-                          <div className="settings-payment-item-grid">
-                            <p><strong>Montant:</strong> {formatPrice(payment.montantEur, '€')}</p>
-                            <p><strong>Crypto:</strong> {formatPrice(payment.montantCrypto, 'ETH')}</p>
-                            <p><strong>Réseau:</strong> {payment.network}</p>
-                            <p><strong>Date:</strong> {formatDateTime(payment.createdAt)}</p>
-                          </div>
+                          {expandedPaymentIds.includes(payment.id) && (
+                            <>
+                              <div className="settings-payment-item-grid">
+                                <p><strong>Montant:</strong> {formatPrice(payment.montantEur, '€')}</p>
+                                <p><strong>Crypto:</strong> {formatPrice(payment.montantCrypto, String(payment.cryptoCode || '').toUpperCase() || 'ETH')}</p>
+                                <p><strong>Réseau:</strong> {payment.network}</p>
+                                <p><strong>Date:</strong> {formatDateTime(payment.createdAt)}</p>
+                              </div>
 
-                          <div className="settings-payment-hash-block">
-                            <span>Hash</span>
-                            <code>{payment.transactionHash}</code>
-                          </div>
+                              <div className="settings-payment-hash-block">
+                                <span>Hash</span>
+                                <code>{payment.transactionHash}</code>
+                              </div>
+                            </>
+                          )}
                         </article>
                       ))}
                     </div>
