@@ -1,13 +1,78 @@
 const { getPool } = require('../config/database');
+const { createPublicClient, http } = require('viem');
 const {
+  AUTO_RENEW_APPROVAL_MONTHS,
   ETH_CHAIN_ID,
   ETH_NETWORK_NAME,
   RENEWAL_MODES,
   RENEWAL_PROVIDERS,
   RENEWAL_STATUSES,
+  SUBSCRIPTION_CORE_ADDRESS,
+  USDC_MONTHLY_PRICE_UNITS,
+  USDC_TOKEN_ADDRESS,
+  USDC_TOKEN_DECIMALS,
+  USDC_TOKEN_SYMBOL,
 } = require('./subscriptionConstants');
 
+const ETH_RPC_URL = process.env.ETH_RPC_URL || 'http://anvil:8545';
+
+const subscriptionCoreReadAbi = [
+  {
+    type: 'function',
+    name: 'autoRenewConfigs',
+    stateMutability: 'view',
+    inputs: [{ name: '', type: 'address' }],
+    outputs: [
+      { name: 'enabled', type: 'bool' },
+      { name: 'maxTokenAmountPerCharge', type: 'uint256' },
+      { name: 'nextChargeAt', type: 'uint256' },
+      { name: 'paidUntil', type: 'uint256' },
+    ],
+  },
+];
+
+function buildRenewalConfig() {
+  const autoRenewalAvailable = Boolean(SUBSCRIPTION_CORE_ADDRESS && USDC_TOKEN_ADDRESS);
+
+  return {
+    autoRenewalAvailable,
+    subscriptionCoreAddress: SUBSCRIPTION_CORE_ADDRESS,
+    tokenAddress: USDC_TOKEN_ADDRESS,
+    tokenSymbol: USDC_TOKEN_SYMBOL,
+    tokenDecimals: USDC_TOKEN_DECIMALS,
+    monthlyPriceUnits: USDC_MONTHLY_PRICE_UNITS.toString(),
+    approvalMonths: AUTO_RENEW_APPROVAL_MONTHS,
+  };
+}
+
+function buildPublicClient() {
+  return createPublicClient({
+    chain: {
+      id: ETH_CHAIN_ID,
+      name: ETH_NETWORK_NAME,
+      nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+      rpcUrls: { default: { http: [ETH_RPC_URL] } },
+    },
+    transport: http(ETH_RPC_URL),
+  });
+}
+
+function timestampToSqlDateTime(timestamp) {
+  if (!timestamp) {
+    return null;
+  }
+
+  const date = new Date(Number(timestamp) * 1000);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
 function formatRenewalSettings(row) {
+  const config = buildRenewalConfig();
+
   if (!row) {
     return {
       provider: RENEWAL_PROVIDERS.ETHEREUM_WALLET,
@@ -24,7 +89,8 @@ function formatRenewalSettings(row) {
       lastTransactionHash: null,
       failureReason: null,
       autoRenewalReady: false,
-      autoRenewalAvailable: false,
+      autoRenewalAvailable: config.autoRenewalAvailable,
+      config,
     };
   }
 
@@ -46,7 +112,8 @@ function formatRenewalSettings(row) {
     lastTransactionHash: row.last_transaction_hash || null,
     failureReason: row.failure_reason || null,
     autoRenewalReady: mode === RENEWAL_MODES.AUTOMATIC && status === RENEWAL_STATUSES.ACTIVE,
-    autoRenewalAvailable: false,
+    autoRenewalAvailable: config.autoRenewalAvailable,
+    config,
   };
 }
 
@@ -138,6 +205,13 @@ async function updateRenewalSettingsForUser(
   const nextStatus = normalizedMode === RENEWAL_MODES.AUTOMATIC
     ? RENEWAL_STATUSES.PENDING_SETUP
     : RENEWAL_STATUSES.DISABLED;
+  const config = buildRenewalConfig();
+
+  if (normalizedMode === RENEWAL_MODES.AUTOMATIC && !config.autoRenewalAvailable) {
+    const error = new Error('Auto-renew USDC indisponible.');
+    error.statusCode = 409;
+    throw error;
+  }
 
   await ensureRenewalSettingsRow(userId, db);
   await db.execute(
@@ -168,6 +242,73 @@ async function updateRenewalSettingsForUser(
   return getRenewalSettingsForUser(userId, db);
 }
 
+async function activateRenewalSettingsForUser(
+  userId,
+  {
+    walletAddress,
+    smartContractAddress = null,
+    mandateReference = null,
+    executor = null,
+  } = {},
+) {
+  const db = executor || await getPool();
+  const config = buildRenewalConfig();
+
+  if (!config.autoRenewalAvailable) {
+    const error = new Error('Auto-renew USDC indisponible.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (!walletAddress) {
+    const error = new Error('Adresse wallet requise.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const [rows] = await db.execute(
+    'SELECT premium_expires_at FROM utilisateur WHERE id = ? LIMIT 1',
+    [userId],
+  );
+  const premiumExpiresAt = rows[0]?.premium_expires_at || null;
+
+  if (!premiumExpiresAt) {
+    const error = new Error('Premium actif requis.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  await ensureRenewalSettingsRow(userId, db);
+  await db.execute(
+    `UPDATE abonnement_renouvellement
+     SET provider = ?,
+         mode = ?,
+         status = ?,
+         wallet_address = ?,
+         chain_id = ?,
+         network = ?,
+         smart_contract_address = ?,
+         mandate_reference = ?,
+         next_renewal_at = ?,
+         failure_reason = NULL
+     WHERE utilisateur_id = ?`,
+    [
+      RENEWAL_PROVIDERS.ETHEREUM_WALLET,
+      RENEWAL_MODES.AUTOMATIC,
+      RENEWAL_STATUSES.ACTIVE,
+      walletAddress,
+      ETH_CHAIN_ID,
+      ETH_NETWORK_NAME,
+      smartContractAddress || SUBSCRIPTION_CORE_ADDRESS,
+      mandateReference,
+      premiumExpiresAt,
+      userId,
+    ],
+  );
+
+  return getRenewalSettingsForUser(userId, db);
+}
+
 async function markRenewalPausedForCancellation(userId, executor = null) {
   const db = executor || await getPool();
   await ensureRenewalSettingsRow(userId, db);
@@ -184,11 +325,100 @@ async function markRenewalPausedForCancellation(userId, executor = null) {
   );
 }
 
+async function getOnchainAutoRenewState({
+  walletAddress,
+  smartContractAddress = null,
+} = {}) {
+  const contractAddress = smartContractAddress || SUBSCRIPTION_CORE_ADDRESS;
+  if (!walletAddress || !contractAddress) {
+    return null;
+  }
+
+  const client = buildPublicClient();
+  const bytecode = await client.getBytecode({ address: contractAddress });
+  if (!bytecode || bytecode === '0x') {
+    return null;
+  }
+
+  const [enabled, maxTokenAmountPerCharge, nextChargeAt, paidUntil] = await client.readContract({
+    address: contractAddress,
+    abi: subscriptionCoreReadAbi,
+    functionName: 'autoRenewConfigs',
+    args: [walletAddress],
+  });
+
+  return {
+    enabled: Boolean(enabled),
+    maxTokenAmountPerCharge: maxTokenAmountPerCharge ? maxTokenAmountPerCharge.toString() : '0',
+    nextChargeAt: Number(nextChargeAt || 0),
+    paidUntil: Number(paidUntil || 0),
+    nextChargeAtDate: timestampToSqlDateTime(nextChargeAt),
+    paidUntilDate: timestampToSqlDateTime(paidUntil),
+  };
+}
+
+async function syncRenewalCoverageFromChain(userId, executor = null) {
+  const db = executor || await getPool();
+  await ensureRenewalSettingsRow(userId, db);
+
+  const [rows] = await db.execute(
+    `SELECT
+       r.wallet_address,
+       r.smart_contract_address,
+       r.mode,
+       r.status
+     FROM abonnement_renouvellement r
+     WHERE r.utilisateur_id = ?
+     LIMIT 1`,
+    [userId],
+  );
+
+  const row = rows[0];
+  if (!row?.wallet_address || row.mode !== RENEWAL_MODES.AUTOMATIC) {
+    return null;
+  }
+
+  const onchain = await getOnchainAutoRenewState({
+    walletAddress: row.wallet_address,
+    smartContractAddress: row.smart_contract_address,
+  });
+
+  if (!onchain?.enabled || !onchain.paidUntilDate) {
+    return onchain;
+  }
+
+  await db.execute(
+    `UPDATE utilisateur
+     SET abonnement_id = (
+       SELECT id FROM abonnement WHERE code = 'premium' LIMIT 1
+     ),
+         premium_expires_at = ?,
+         premium_cancel_at_period_end = FALSE,
+         quota_cleanup_required = FALSE
+     WHERE id = ?`,
+    [onchain.paidUntilDate, userId],
+  );
+
+  await db.execute(
+    `UPDATE abonnement_renouvellement
+     SET status = ?,
+         next_renewal_at = ?,
+         failure_reason = NULL
+     WHERE utilisateur_id = ?`,
+    [RENEWAL_STATUSES.ACTIVE, onchain.paidUntilDate, userId],
+  );
+
+  return onchain;
+}
+
 module.exports = {
+  activateRenewalSettingsForUser,
   ensureRenewalSettingsRow,
   formatRenewalSettings,
+  getOnchainAutoRenewState,
   getRenewalSettingsForUser,
   markRenewalPausedForCancellation,
+  syncRenewalCoverageFromChain,
   updateRenewalPaymentContext,
   updateRenewalSettingsForUser,
 };

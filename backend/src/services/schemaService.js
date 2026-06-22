@@ -41,6 +41,10 @@ async function ensureDatabaseSchema() {
     await db.execute('ALTER TABLE utilisateur ADD COLUMN quota_cleanup_required BOOLEAN NOT NULL DEFAULT FALSE');
   }
 
+  if (!(await hasColumn(db, 'abonnement_paiement', 'duration_months'))) {
+    await db.execute('ALTER TABLE abonnement_paiement ADD COLUMN duration_months INT UNSIGNED NOT NULL DEFAULT 1');
+  }
+
   await db.execute(
     `CREATE TABLE IF NOT EXISTS abonnement_renouvellement (
       id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

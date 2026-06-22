@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS abonnement_paiement (
   utilisateur_id BIGINT UNSIGNED NOT NULL,
   abonnement_id BIGINT UNSIGNED NOT NULL,
   plan_code VARCHAR(30) NOT NULL,
+  duration_months INT UNSIGNED NOT NULL DEFAULT 1,
   montant_eur DECIMAL(10,2) NOT NULL,
   crypto_code VARCHAR(10) NOT NULL,
   montant_crypto DECIMAL(18,8) NOT NULL,
