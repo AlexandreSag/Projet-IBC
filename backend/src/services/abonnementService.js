@@ -73,7 +73,7 @@ async function getUserPlanRow(userId) {
 async function syncUserPlanState(userId) {
   const db = await getPool();
   const freePlan = await getAbonnementByCode(PLAN_CODES.FREE);
-  const row = await getUserPlanRow(userId);
+  let row = await getUserPlanRow(userId);
   if (!row) {
     return;
   }
@@ -106,6 +106,17 @@ async function syncUserPlanState(userId) {
   }
 
   if (new Date(row.premium_expires_at).getTime() <= Date.now()) {
+    await subscriptionRenewalService.syncRenewalCoverageFromChain(userId, db);
+    row = await getUserPlanRow(userId);
+
+    if (!row || row.code !== PLAN_CODES.PREMIUM) {
+      return;
+    }
+
+    if (row.premium_expires_at && new Date(row.premium_expires_at).getTime() > Date.now()) {
+      return;
+    }
+
     const accounts = await getUserQuotaCleanupData(userId);
     const projectedState = buildProjectedState(accounts, freePlan, null);
     const cleanupRequired = !isProjectedStateWithinLimits(projectedState);
@@ -176,7 +187,7 @@ async function assignPlanToUser(userId, planCode) {
   const plan = await getAbonnementByCode(planCode);
 
   if (!plan) {
-    const error = new Error(`Plan introuvable ou inactif: ${planCode}`);
+    const error = new Error(`Plan ${planCode} introuvable.`);
     error.statusCode = 404;
     throw error;
   }

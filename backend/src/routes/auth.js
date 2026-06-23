@@ -6,6 +6,7 @@ const { getPool } = require('../config/database');
 const { authMiddleware } = require('../middleware/authMiddleware');
 const abonnementService = require('../services/abonnementService');
 const abonnementPaymentService = require('../services/abonnementPaymentService');
+const subscriptionAutoRenewalRunner = require('../services/subscriptionAutoRenewalRunner');
 const subscriptionRenewalService = require('../services/subscriptionRenewalService');
 const { sendVerificationEmail } = require('../services/emailService');
 
@@ -285,10 +286,11 @@ router.get('/me/abonnement-status', async (req, res, next) => {
 
 router.post('/me/abonnement/payment-intent', async (req, res, next) => {
   try {
-    const { planCode, cryptoCode } = req.body || {};
+    const { planCode, cryptoCode, durationMonths } = req.body || {};
     const result = await abonnementPaymentService.createPaymentIntentForUser(req.auth.sub, {
       planCode,
       cryptoCode,
+      durationMonths,
     });
 
     return res.status(201).json({
@@ -345,6 +347,30 @@ router.put('/me/abonnement/renewal-settings', async (req, res, next) => {
   }
 });
 
+router.post('/me/abonnement/renewal-settings/activate', async (req, res, next) => {
+  try {
+    const renewal = await subscriptionRenewalService.activateRenewalSettingsForUser(req.auth.sub, req.body || {});
+    return res.json({
+      message: 'Le renouvellement automatique en USDC est activé.',
+      renewal,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/me/abonnement/usdc-auto-subscription', async (req, res, next) => {
+  try {
+    const result = await subscriptionAutoRenewalRunner.activateUsdcSubscriptionForUser(req.auth.sub, req.body || {});
+    return refreshSessionResponse(res, req.auth.sub, {
+      message: 'Paiement USDC confirmé, votre compte Premium avec renouvellement automatique est actif.',
+      ...result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.get('/me/abonnement/payments', async (req, res, next) => {
   try {
     const payments = await abonnementPaymentService.listPaymentsForUser(req.auth.sub, {
@@ -374,8 +400,8 @@ router.post('/me/abonnement/payment-confirmation', async (req, res, next) => {
 
     return refreshSessionResponse(res, req.auth.sub, {
       message: result.alreadyConfirmed
-        ? 'Ce paiement Ethereum avait déjà été confirmé.'
-        : 'Paiement Ethereum confirmé. Le plan Premium est maintenant actif.',
+        ? 'Ce paiement Ethereum a déjà été confirmé.'
+        : 'Paiement Ethereum confirmé, votre compte Premium est actif.',
       ...result,
     });
   } catch (error) {

@@ -13,19 +13,28 @@ const PAYMENT_STATUS = {
 const ETHEREUM_PAYMENT = {
   cryptoCode: 'eth',
   network: 'ethereum',
-  fallbackAmountForPremium: Number(process.env.ETH_PREMIUM_FALLBACK_AMOUNT || 0.0034),
+  fallbackAmountForPremium: 0.0034,
 };
 
 const PAYMENT_INTENT_TTL_HOURS = Number(process.env.PAYMENT_INTENT_TTL_HOURS || 24);
 const ETH_RPC_URL = process.env.ETH_RPC_URL || 'http://anvil:8545';
 const ETH_EUR_RATE_API_URL = process.env.ETH_EUR_RATE_API_URL || 'https://api.coinbase.com/v2/prices/ETH-EUR/spot';
-const ETH_EUR_RATE_CACHE_TTL_MS = Number(process.env.ETH_EUR_RATE_CACHE_TTL_MS || 300000);
+const ETH_EUR_RATE_CACHE_TTL_MS = 300000;
 
 let cachedEthEurRate = null;
 let cachedEthEurRateExpiresAt = 0;
 
 function normalizeCryptoCode(value) {
   return String(value || ETHEREUM_PAYMENT.cryptoCode).trim().toLowerCase();
+}
+
+function normalizeDurationMonths(value) {
+  const normalized = Number(value);
+  if (!Number.isInteger(normalized) || normalized < 1) {
+    return 1;
+  }
+
+  return Math.min(normalized, 24);
 }
 
 function getWalletAddressForPlan(plan) {
@@ -90,14 +99,14 @@ async function fetchEthEurRate() {
   });
 
   if (!response.ok) {
-    throw new Error('Impossible de récupérer le taux ETH/EUR.');
+    throw new Error('Taux ETH/EUR indisponible.');
   }
 
   const payload = await response.json();
   const rate = parseEthEurRatePayload(payload);
 
   if (!Number.isFinite(rate) || rate <= 0) {
-    throw new Error('Réponse de taux ETH/EUR invalide.');
+    throw new Error('Taux ETH/EUR invalide.');
   }
 
   cachedEthEurRate = rate;
@@ -139,7 +148,7 @@ async function rpcRequest(method, params = []) {
   });
 
   if (!response.ok) {
-    const error = new Error('Impossible de joindre le noeud Ethereum de test.');
+    const error = new Error('RPC Ethereum indisponible.');
     error.statusCode = 502;
     throw error;
   }
@@ -164,6 +173,7 @@ function formatPaymentIntent(row) {
     utilisateurId: row.utilisateur_id,
     abonnementId: row.abonnement_id,
     planCode: row.plan_code,
+    durationMonths: Number(row.duration_months || 1),
     montantEur: Number(row.montant_eur),
     cryptoCode: row.crypto_code,
     montantCrypto: Number(row.montant_crypto),
@@ -202,7 +212,7 @@ async function getPaymentIntentForUser(userId, paymentIntentId) {
   const row = await getPaymentIntentRowByIdForUser(userId, paymentIntentId);
 
   if (!row) {
-    const error = new Error('Demande de paiement introuvable.');
+    const error = new Error('Paiement introuvable.');
     error.statusCode = 404;
     throw error;
   }
@@ -255,19 +265,20 @@ async function getLatestOpenPaymentIntentForUser(userId) {
   return formatPaymentIntent(row);
 }
 
-async function createPaymentIntentForUser(userId, { planCode, cryptoCode } = {}) {
+async function createPaymentIntentForUser(userId, { planCode, cryptoCode, durationMonths } = {}) {
   const normalizedPlanCode = String(planCode || PLAN_CODES.PREMIUM).trim().toLowerCase();
   const normalizedCryptoCode = normalizeCryptoCode(cryptoCode);
+  const normalizedDurationMonths = normalizeDurationMonths(durationMonths);
 
   if (normalizedCryptoCode !== ETHEREUM_PAYMENT.cryptoCode) {
-    const error = new Error('Ethereum est la seule crypto supportée pour le moment.');
+    const error = new Error('Seul ETH est supporté ici.');
     error.statusCode = 400;
     throw error;
   }
 
   const plan = await abonnementService.getAbonnementByCode(normalizedPlanCode);
   if (!plan) {
-    const error = new Error('Plan introuvable.');
+    const error = new Error('Plan indisponible.');
     error.statusCode = 404;
     throw error;
   }
@@ -281,7 +292,7 @@ async function createPaymentIntentForUser(userId, { planCode, cryptoCode } = {})
   const walletAddress = getWalletAddressForPlan(plan);
   const db = await getPool();
   const expiresAt = buildExpiresAt();
-  const montantEur = Number(plan.prix || 0);
+  const montantEur = Number(plan.prix || 0) * normalizedDurationMonths;
   const montantCrypto = await resolvePremiumEthAmount(montantEur);
 
   const [result] = await db.execute(
@@ -289,6 +300,7 @@ async function createPaymentIntentForUser(userId, { planCode, cryptoCode } = {})
       utilisateur_id,
       abonnement_id,
       plan_code,
+      duration_months,
       montant_eur,
       crypto_code,
       montant_crypto,
@@ -296,11 +308,12 @@ async function createPaymentIntentForUser(userId, { planCode, cryptoCode } = {})
       wallet_address,
       status,
       expires_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       userId,
       plan.id,
       plan.code,
+      normalizedDurationMonths,
       montantEur,
       normalizedCryptoCode,
       montantCrypto,
@@ -326,14 +339,14 @@ async function confirmPaymentIntentForUser(userId, paymentIntentId, transactionH
   const row = await getPaymentIntentRowByIdForUser(userId, paymentIntentId);
 
   if (!row) {
-    const error = new Error('Demande de paiement introuvable.');
+    const error = new Error('Paiement introuvable.');
     error.statusCode = 404;
     throw error;
   }
 
   if (row.status === PAYMENT_STATUS.PENDING && row.expires_at && new Date(row.expires_at).getTime() < Date.now()) {
     await markPaymentIntentAsExpired(row.id);
-    const error = new Error('La demande de paiement a expiré.');
+    const error = new Error('Paiement expiré.');
     error.statusCode = 410;
     throw error;
   }
@@ -347,7 +360,7 @@ async function confirmPaymentIntentForUser(userId, paymentIntentId, transactionH
   }
 
   if (row.status !== PAYMENT_STATUS.PENDING) {
-    const error = new Error('Cette demande de paiement n’est plus confirmable.');
+    const error = new Error('Paiement non confirmable.');
     error.statusCode = 409;
     throw error;
   }
@@ -356,14 +369,14 @@ async function confirmPaymentIntentForUser(userId, paymentIntentId, transactionH
   const transaction = await rpcRequest('eth_getTransactionByHash', [normalizedHash]);
 
   if (!transaction) {
-    const error = new Error('Transaction Ethereum introuvable.');
+    const error = new Error('Transaction introuvable.');
     error.statusCode = 404;
     throw error;
   }
 
   const receipt = await rpcRequest('eth_getTransactionReceipt', [normalizedHash]);
   if (!receipt || !receipt.blockHash) {
-    const error = new Error('La transaction Ethereum n’est pas encore confirmée.');
+    const error = new Error('Transaction non confirmée.');
     error.statusCode = 409;
     throw error;
   }
@@ -385,7 +398,7 @@ async function confirmPaymentIntentForUser(userId, paymentIntentId, transactionH
   const targetAddress = normalizeAddress(transaction.to);
   const expectedAddress = normalizeAddress(row.wallet_address);
   if (!targetAddress || targetAddress !== expectedAddress) {
-    const error = new Error('La transaction n’a pas été envoyée vers la bonne adresse Ethereum.');
+    const error = new Error('Mauvaise adresse de destination.');
     error.statusCode = 422;
     throw error;
   }
@@ -393,7 +406,7 @@ async function confirmPaymentIntentForUser(userId, paymentIntentId, transactionH
   const expectedWei = decimalToWei(row.montant_crypto);
   const sentWei = BigInt(transaction.value || '0x0');
   if (sentWei < expectedWei) {
-    const error = new Error('Le montant envoyé est insuffisant pour activer le Premium.');
+    const error = new Error('Montant insuffisant.');
     error.statusCode = 422;
     throw error;
   }
@@ -411,6 +424,7 @@ async function confirmPaymentIntentForUser(userId, paymentIntentId, transactionH
     );
     await subscriptionLifecycleService.activatePremiumPlan(userId, {
       planId: row.abonnement_id,
+      durationMonths: normalizeDurationMonths(row.duration_months),
       walletAddress: transaction.from || null,
       lastPaymentId: row.id,
       lastTransactionHash: normalizedHash,

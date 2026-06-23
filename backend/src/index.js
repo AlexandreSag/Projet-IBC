@@ -3,6 +3,7 @@ require('dotenv').config();
 const { waitForDatabase } = require('./config/database');
 const { createApp } = require('./app');
 const { ensureDatabaseSchema } = require('./services/schemaService');
+const { startAutoRenewalRunner } = require('./services/subscriptionAutoRenewalRunner');
 
 const port = Number(process.env.PORT || 8080);
 
@@ -12,6 +13,7 @@ waitForDatabase()
     const app = createApp();
     app.listen(port, () => {
       console.log(`API ready on port ${port}`);
+      startAutoRenewalRunner();
     });
   })
   .catch((error) => {
