@@ -93,6 +93,32 @@
   font-size: 1rem;
 }
 
+.subscription-payment-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  border-radius: 14px;
+  padding: 0.85rem 0.95rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.subscription-payment-feedback.success {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.subscription-payment-feedback.error {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.subscription-payment-feedback i {
+  margin-top: 0.12rem;
+}
+
 .subscription-payment-summary {
   border: 1px solid rgba(14, 165, 183, 0.18);
   background: rgba(248, 252, 255, 0.96);

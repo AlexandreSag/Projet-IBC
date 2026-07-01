@@ -1,71 +1,228 @@
-# Projet IBC
+# Budgie - Projet IBC
 
-- un backend Node.js/Express ;
-- un frontend React (Vite) ;
-- une base de données MySQL ;
-- un proxy Nginx en frontal ;
-- phpMyAdmin pour l'administration MySQL ;
+Budgie est une application web de gestion de budget développée pour le projet IBC.
+Le but est de permettre à un utilisateur de gérer ses comptes, ses dépenses, ses revenus, ses quotas, son abonnement Premium et le partage de comptes avec d'autres utilisateurs.
+
+Le projet a été réalisé à deux :
+
+- Alexandre Sage - GitHub `AlexandreSag`
+- William Sage - GitHub `pilliam91`
+
+## Objectif du projet
+
+L'objectif du projet est de créer une application complète autour de la gestion de budget personnel, en respectant le sujet qui nous a été donné.
+L'application permet à un utilisateur de suivre ses comptes, d'ajouter ses revenus et ses dépenses, puis de visualiser l'impact sur son solde et ses prévisions.
+
+Le sujet demandait aussi d'intégrer une partie blockchain.
+Nous l'avons donc reliée au système d'abonnement Premium, avec un paiement en ETH ou en USDC, un historique des paiements et un renouvellement automatique.
+
+Cette partie nous permet de montrer comment une application web peut communiquer avec un smart contract et un wallet comme MetaMask, tout en gardant une logique applicative classique côté backend et base de données.
+
+## Fonctionnalités principales
+
+- Création de compte utilisateur avec vérification par email.
+- Connexion avec JWT stocké en cookie HTTP-only.
+- Gestion des comptes bancaires.
+- Ajout de dépenses et de revenus.
+- Calcul du solde des comptes et affichage des prévisions.
+- Quotas différents entre le plan Gratuit et le plan Premium.
+- Page abonnement avec paiement Ethereum ou USDC.
+- Renouvellement automatique en USDC via smart contract.
+- Historique des paiements confirmés.
+- Retour au plan Gratuit avec nettoyage des données qui dépassent les quotas.
+- Partage d'un compte par invitation email, avec accès en lecture seule pour la personne invitée.
+
+## Stack technique
+
+Le projet est lancé avec Docker Compose.
+
+- Frontend : React, Vite, React Router.
+- Backend : Node.js, Express.
+- Base de données : MySQL 8.
+- Proxy : Nginx.
+- Admin DB : phpMyAdmin.
+- Blockchain locale : Anvil.
+- Smart contract : Solidity compilé avec `solc`.
+- Interaction blockchain : `viem`.
+
+## Architecture
+
+L'application est découpée en plusieurs services Docker.
+Le frontend React est servi derrière Nginx, qui sert aussi de point d'entrée pour les appels API.
+Le backend Express gère l'authentification, les données métier, les abonnements et les paiements.
+La base MySQL stocke les utilisateurs, les comptes, les transactions, les abonnements et l'historique des paiements.
+
+Pour la partie blockchain, le frontend communique avec MetaMask pour signer les transactions.
+Le backend vérifie ensuite les paiements et garde l'état de l'abonnement en base.
+Anvil sert de blockchain de test, avec un fork Ethereum quand on veut utiliser le vrai contrat USDC dans un environnement local.
+
+Flux principal :
+
+```txt
+Navigateur
+  -> Nginx
+  -> Frontend React
+  -> API Express
+  -> MySQL
+
+MetaMask
+  -> Anvil
+  -> SubscriptionCore
+```
+
+## Structure du projet
+
+```txt
+.
+├── backend/        # API Express, auth, abonnements, paiements, partage
+├── contracts/      # Smart contract SubscriptionCore et scripts Anvil
+├── database/       # Schéma SQL et migrations
+├── frontend/       # Application React
+├── nginx/          # Configuration du reverse proxy
+├── compose.yml     # Services Docker
+├── .env.example    # Exemple de configuration
+└── README.md
+```
 
 ## Prérequis
 
 - Docker
+- Docker Compose
+- Node.js si on lance certains scripts hors Docker
+- MetaMask pour tester les paiements blockchain
 
-## Structure
+## Installation
 
+Copier le fichier d'exemple :
+
+```bash
+cp .env.example .env
 ```
-.
-├── backend/        # API Express + Dockerfile dédié
-├── frontend/       # Application React + Dockerfile dédié
-├── nginx/          # Proxy inverse Nginx + Dockerfile
-├── compose.yml
-├── .env.example    # Variables d'environnement pour Compose
-└── README.md
-```
 
-## Configuration
+Puis adapter les variables utiles dans `.env`.
 
-1. Copier les variables d'exemple :
-   ```bash
-   cp .env.example .env
-   ```
-2. Ajuster le mot de passe root MySQL et les identifiants applicatifs si besoin.
-3. Renseigner les variables SMTP si vous activez la vérification d’email à l’inscription.
+Pour un lancement simple en local, les valeurs par défaut suffisent pour MySQL et l'application.
+Pour tester USDC sur le fork Ethereum, il faut ajouter une URL RPC mainnet dans `ANVIL_FORK_URL`, par exemple via Alchemy ou Infura.
 
-Les valeurs sont ensuite injectées dans les conteneurs via `docker-compose.yml`.
-
-Variables utiles pour la vérification d’email :
-
-- `APP_BASE_URL` : URL publique de l’application, utilisée dans le lien de confirmation.
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` : configuration SMTP du fournisseur mail.
-- `SMTP_USER`, `SMTP_PASSWORD` : identifiants de la boîte d’envoi.
-- `SMTP_FROM_NAME`, `SMTP_FROM_EMAIL` : expéditeur affiché.
-- `EMAIL_VERIFICATION_TTL_MS` : durée de validité du lien de confirmation.
-
-## Démarrer l'environnement
+## Lancer le projet
 
 ```bash
 docker compose up --build
 ```
 
-- **frontend** : servi via Nginx sur http://localhost
-- **backend** : accessible via le proxy (`/api/...`).
-- **nginx** : reverse proxy unique exposé sur le port 80.
-- **phpmyadmin** : interface d'administration MySQL via http://localhost/phpmyadmin.
-- **db** : MySQL 8, volume persistant `db_data`, aucun port exposé vers l'hôte.
+Accès principaux :
 
-- Deux réseaux sont définis : `ibc-internal` (interne) pour le couple backend ↔ MySQL et `ibc-public` pour exposer uniquement le proxy Nginx et phpMyAdmin tout en leur donnant accès au frontend et au backend.
+- Application : http://localhost
+- API : http://localhost/api
+- phpMyAdmin : http://localhost/phpmyadmin
+- Anvil RPC : http://localhost:8545
 
-## Accès MySQL / phpMyAdmin
+Identifiants MySQL par défaut :
 
-- URL : http://localhost/phpmyadmin
 - Serveur : `db`
-- Identifiants par défaut : `ibc_user` / `ibc_password` (définis dans `.env`).
-- Le compte root reste accessible depuis l'intérieur du réseau docker (`root` / `rootpassword`).
+- Utilisateur : `ibc_user`
+- Mot de passe : `ibc_password`
+- Base : `ibc_db`
 
-## Notes de développement
+## Déploiement
 
-- Le frontend Vite proxifie les appels `/api` vers le service `backend`, évitant d'ouvrir un port supplémentaire.
-- Le backend expose une route de santé `/api/health` qui vérifie la connexion MySQL.
-- Le backend expose `POST /api/login` (émission JWT), `GET /api/me` et `POST /api/logout` (routes protégées par middleware JWT).
-- Le backend expose aussi `POST /api/register` avec vérification d’email et `GET /api/verify-email?token=...` pour activer le compte.
-- Pour relancer depuis zéro la base de données, supprimez le volume Docker `projet-ibc_db_data`.
+Pour le déploiement serveur, nous utilisons Docker et un tunnel Cloudflare déjà configuré sur la machine.
+Le fichier `compose.prod.yml` sert à lancer l'application sans exposer directement les ports publics du projet.
+Cloudflare Tunnel redirige ensuite les domaines vers les conteneurs Docker.
+
+Domaines utilisés en déploiement :
+
+- `https://budgie.batouney.com` : application Budgie.
+- `https://anvil.batouney.com` : RPC Anvil utilisé par MetaMask.
+
+Le backend utilise directement `http://anvil:8545` dans le réseau Docker.
+Le frontend utilise l'URL publique du RPC, car MetaMask tourne dans le navigateur de l'utilisateur.
+
+## Paiement et abonnement
+
+Le paiement Premium peut se faire de deux façons :
+
+- En ETH : paiement direct pour une durée choisie dans la modale.
+- En USDC : paiement avec activation du renouvellement automatique.
+
+Le smart contract principal est `SubscriptionCore`.
+Il gère surtout le paiement USDC et le renouvellement automatique.
+
+En local, Anvil est utilisé comme blockchain de test.
+Le projet peut être lancé avec un fork Ethereum pour utiliser le vrai contrat USDC mainnet dans un environnement local.
+
+Commandes utiles côté contracts :
+
+```bash
+cd contracts
+npm install
+npm run compile
+npm run deploy:fork
+npm run fund:fork
+```
+
+Après un redéploiement du contrat, il faut mettre à jour `SUBSCRIPTION_CORE_ADDRESS` dans `.env`.
+
+## Variables importantes
+
+Les variables principales sont dans `.env.example`.
+
+- `APP_BASE_URL` : URL de l'application, utilisée pour les liens email.
+- `JWT_SECRET` : secret utilisé pour signer les tokens.
+- `SMTP_*` : configuration email.
+- `ETH_WALLET_ADDRESS` : wallet qui reçoit les paiements ETH.
+- `ANVIL_FORK_URL` : URL RPC utilisée pour forker Ethereum.
+- `SUBSCRIPTION_CORE_ADDRESS` : adresse du contrat déployé.
+- `USDC_WHALE_ADDRESS` : wallet utilisé pour créditer des USDC de test sur le fork.
+- `AUTO_RENEW_RUNNER_PRIVATE_KEY` : clé utilisée par le backend pour lancer les renouvellements.
+
+## Commandes de développement
+
+Lint global :
+
+```bash
+npm run lint
+```
+
+Frontend :
+
+```bash
+cd frontend
+npm install
+npm run dev
+npm run build
+```
+
+Backend :
+
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+Contracts :
+
+```bash
+cd contracts
+npm install
+npm run compile
+```
+
+## Remettre l'environnement à zéro
+
+Pour repartir sur une base propre :
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+Cette commande supprime les volumes Docker, donc aussi la base MySQL et l'état Anvil.
+
+## Notes
+
+- Le backend parle à MySQL via le réseau Docker interne.
+- Le frontend passe par Nginx pour appeler l'API en `/api`.
+- Le runner de renouvellement automatique tourne côté backend.
+- Les comptes partagés sont visibles en lecture seule pour les utilisateurs invités.

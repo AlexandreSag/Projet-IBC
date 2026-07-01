@@ -47,6 +47,8 @@ export default function SubscriptionPaymentModal({
   isLoadingPaymentIntent,
   isSubmittingUsdc,
   paymentHash,
+  paymentError,
+  paymentInfoMessage,
   onClose,
   onCopyAddress,
   onConnectWallet,
@@ -158,6 +160,16 @@ export default function SubscriptionPaymentModal({
             )}
           </div>
         </section>
+
+        {(paymentError || paymentInfoMessage) && (
+          <div className={`subscription-payment-feedback ${paymentError ? 'error' : 'success'}`}>
+            <i
+              className={`fa-solid ${paymentError ? 'fa-circle-exclamation' : 'fa-circle-check'}`}
+              aria-hidden="true"
+            />
+            <span>{paymentError || paymentInfoMessage}</span>
+          </div>
+        )}
 
         {isEthMethod ? (
           <>

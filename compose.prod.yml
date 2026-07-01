@@ -1,0 +1,129 @@
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      PORT: ${BACKEND_PORT:-8080}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER:-ibc_user}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-ibc_password}
+      DB_NAME: ${MYSQL_DATABASE:-ibc_db}
+      JWT_SECRET: ${JWT_SECRET:-change_me_super_secret}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      JWT_COOKIE_TTL_MS: ${JWT_COOKIE_TTL_MS:-86400000}
+      APP_BASE_URL: ${APP_BASE_URL:-https://budgie.batouney.com}
+      EMAIL_VERIFICATION_TTL_MS: ${EMAIL_VERIFICATION_TTL_MS:-86400000}
+      SMTP_HOST: ${SMTP_HOST:-smtp.mail.ovh.net}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Budgie}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      ETH_RPC_URL: ${ETH_RPC_URL:-http://anvil:8545}
+      ETH_WALLET_ADDRESS: ${ETH_WALLET_ADDRESS:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}
+      USDC_MAINNET_ADDRESS: ${USDC_MAINNET_ADDRESS:-0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48}
+      USDC_MONTHLY_PRICE_UNITS: ${USDC_MONTHLY_PRICE_UNITS:-9990000}
+      AUTO_RENEW_APPROVAL_MONTHS: ${AUTO_RENEW_APPROVAL_MONTHS:-12}
+      SUBSCRIPTION_CORE_ADDRESS: ${SUBSCRIPTION_CORE_ADDRESS:-}
+      AUTO_RENEW_RUNNER_ENABLED: ${AUTO_RENEW_RUNNER_ENABLED:-true}
+      AUTO_RENEW_RUNNER_INTERVAL_MS: ${AUTO_RENEW_RUNNER_INTERVAL_MS:-60000}
+      AUTO_RENEW_RUNNER_PRIVATE_KEY: ${AUTO_RENEW_RUNNER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+    depends_on:
+      db:
+        condition: service_healthy
+      anvil:
+        condition: service_started
+    networks:
+      - ibc-internal
+      - ibc-public
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      VITE_ETH_RPC_URL: ${VITE_ETH_RPC_URL:-https://anvil.batouney.com}
+    depends_on:
+      - backend
+      - anvil
+    networks:
+      - ibc-public
+    expose:
+      - "5173"
+
+  db:
+    image: mysql:8.4.7
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ibc_db}
+      MYSQL_USER: ${MYSQL_USER:-ibc_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ibc_password}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 5s
+      retries: 5
+      timeout: 3s
+    networks:
+      - ibc-internal
+
+  nginx:
+    build: ./nginx
+    container_name: budgie-nginx
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - ibc-public
+      - web
+
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: budgie-anvil
+    user: "0:0"
+    entrypoint:
+      - /bin/sh
+      - -lc
+    stop_grace_period: 15s
+    restart: unless-stopped
+    environment:
+      ANVIL_IP_ADDR: 0.0.0.0
+      ANVIL_FORK_URL: ${ANVIL_FORK_URL:-}
+      ANVIL_FORK_BLOCK_NUMBER: ${ANVIL_FORK_BLOCK_NUMBER:-}
+    command:
+      - >
+        anvil
+        --host 0.0.0.0
+        --port 8545
+        --chain-id 31337
+        --state /anvil-state/state.json
+        --state-interval 10
+        $${ANVIL_FORK_URL:+ --fork-url "$${ANVIL_FORK_URL}"}
+        $${ANVIL_FORK_BLOCK_NUMBER:+ --fork-block-number "$${ANVIL_FORK_BLOCK_NUMBER}"}
+    ports:
+      - "127.0.0.1:8545:8545"
+    volumes:
+      - anvil_state:/anvil-state
+    networks:
+      - ibc-public
+      - web
+
+networks:
+  ibc-internal:
+    driver: bridge
+    internal: true
+  ibc-public:
+    driver: bridge
+  web:
+    external: true
+
+volumes:
+  db_data:
+  anvil_state:
