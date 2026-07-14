@@ -1,6 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { createWalletClient, encodeFunctionData, erc20Abi } from 'viem';
 import { requestJson, useAuth } from '../context/AuthContext.jsx';
+import { subscriptionCoreAbi } from '../lib/subscriptionContracts.js';
+import {
+  anvilLocalChain,
+  createBrowserWalletClient,
+  getEthereumProvider,
+  waitForSuccessfulAnvilReceipt,
+} from '../lib/walletConfig.js';
 import DashboardTopbar from './dashboard/DashboardTopbar.jsx';
 import SubscriptionDowngradeModal from './subscription/SubscriptionDowngradeModal.jsx';
 import {
@@ -195,6 +203,9 @@ export default function SettingsPage() {
 
   const statusAbonnement = abonnementStatus?.abonnement || abonnement;
   const renewalStatus = statusAbonnement?.renewal || null;
+  const renewalRevocationRequired = Boolean(
+    renewalStatus?.autoRenewalReady || renewalStatus?.status === 'paused',
+  );
 
   const reloadSubscriptionData = async () => {
     const [statusData, paymentsData] = await Promise.all([
@@ -206,7 +217,12 @@ export default function SettingsPage() {
     setPaymentHistory(Array.isArray(paymentsData?.payments) ? paymentsData.payments : []);
   };
 
-  const handleOpenDowngradeFlow = async () => {
+  const handleOpenDowngradeFlow = useCallback(async () => {
+    if (renewalRevocationRequired) {
+      setAbonnementError('Désactivez d’abord le renouvellement automatique.');
+      return;
+    }
+
     setIsLoadingDowngradePreview(true);
     setAbonnementError(null);
 
@@ -220,7 +236,7 @@ export default function SettingsPage() {
     } finally {
       setIsLoadingDowngradePreview(false);
     }
-  };
+  }, [renewalRevocationRequired]);
 
   useEffect(() => {
     const shouldOpenCleanupFlow = searchParams.get('cleanup') === '1'
@@ -290,6 +306,52 @@ export default function SettingsPage() {
     setAbonnementError(null);
 
     try {
+      const provider = getEthereumProvider();
+      const config = renewalStatus?.config;
+      if (!provider || !config?.subscriptionCoreAddress || !config?.tokenAddress) {
+        throw new Error('Connectez le wallet utilisé pour l’abonnement.');
+      }
+
+      const accounts = await provider.request({ method: 'eth_requestAccounts' });
+      const account = Array.isArray(accounts) ? accounts[0] : null;
+      if (!account || account.toLowerCase() !== renewalStatus?.walletAddress?.toLowerCase()) {
+        throw new Error('Sélectionnez le wallet utilisé pour l’abonnement.');
+      }
+
+      const chainHex = `0x${anvilLocalChain.id.toString(16)}`;
+      const currentChainHex = await provider.request({ method: 'eth_chainId' });
+      if (currentChainHex !== chainHex) {
+        await provider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: chainHex }],
+        });
+      }
+
+      const walletClient = createWalletClient({
+        chain: anvilLocalChain,
+        transport: createBrowserWalletClient(),
+      });
+      const disableHash = await walletClient.sendTransaction({
+        account,
+        to: config.subscriptionCoreAddress,
+        data: encodeFunctionData({
+          abi: subscriptionCoreAbi,
+          functionName: 'disableAutoRenew',
+        }),
+      });
+      await waitForSuccessfulAnvilReceipt(disableHash);
+
+      const revokeHash = await walletClient.sendTransaction({
+        account,
+        to: config.tokenAddress,
+        data: encodeFunctionData({
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [config.subscriptionCoreAddress, 0n],
+        }),
+      });
+      await waitForSuccessfulAnvilReceipt(revokeHash);
+
       await requestJson('/api/me/abonnement/renewal-settings', {
         method: 'PUT',
         body: JSON.stringify({ mode: 'manual' }),
@@ -483,12 +545,18 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                {renewalStatus?.autoRenewalReady && (
+                {renewalRevocationRequired && (
                   <div className="settings-renewal-card info-card">
                     <div>
-                      <strong>Renouvellement automatique actif</strong>
+                      <strong>
+                        {renewalStatus?.status === 'paused'
+                          ? 'Autorisation USDC à révoquer'
+                          : 'Renouvellement automatique actif'}
+                      </strong>
                       <p className="settings-subtle-text">
-                        Le prochain prélèvement est prévu le {formatDateTime(renewalStatus.nextRenewalAt)}.
+                        {renewalStatus?.status === 'paused'
+                          ? 'Désactivez le renouvellement avant de revenir au plan gratuit.'
+                          : `Le prochain prélèvement est prévu le ${formatDateTime(renewalStatus.nextRenewalAt)}.`}
                       </p>
                     </div>
                     <button

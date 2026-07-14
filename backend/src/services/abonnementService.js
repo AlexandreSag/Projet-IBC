@@ -334,6 +334,7 @@ function normalizeSelection(selection) {
 function buildProjectedState(accounts, targetPlan, selection) {
   const selected = buildSelectionSet(selection);
 
+  // On simule les suppressions pour vérifier les quotas avant de toucher aux données.
   const keptAccounts = accounts
     .filter((account) => !selected.accountIds.has(account.id))
     .map((account) => ({
@@ -520,6 +521,18 @@ async function getUserDowngradePreview(userId) {
 async function downgradeUserToFreeWithSelection(userId, selection) {
   const db = await getPool();
   const preview = await getUserDowngradePreview(userId);
+  const renewal = preview.currentPlan?.renewal;
+
+  if ((renewal?.autoRenewalReady || renewal?.status === 'paused') && renewal.walletAddress) {
+    const onchain = await subscriptionRenewalService.getOnchainAutoRenewState({
+      walletAddress: renewal.walletAddress,
+    });
+    if (onchain && (onchain.enabled || BigInt(onchain.allowance || '0') > 0n)) {
+      const error = new Error('Désactivez d’abord le renouvellement automatique.');
+      error.statusCode = 409;
+      throw error;
+    }
+  }
 
   if (preview.scheduledOnly) {
     await subscriptionLifecycleService.scheduleCancellationAtPeriodEnd(userId, db);
@@ -533,6 +546,7 @@ async function downgradeUserToFreeWithSelection(userId, selection) {
   const normalizedSelection = normalizeSelection(selection);
   const projectedState = buildProjectedState(preview.accounts, preview.targetPlan, normalizedSelection);
 
+  // Chaque élément sélectionné doit appartenir à l'utilisateur connecté.
   const accountIds = new Set(preview.accounts.map((account) => account.id));
   const depenseIds = new Set(preview.accounts.flatMap((account) => account.depenses.map((depense) => depense.id)));
   const revenuIds = new Set(preview.accounts.flatMap((account) => account.revenus.map((revenu) => revenu.id)));
@@ -561,6 +575,7 @@ async function downgradeUserToFreeWithSelection(userId, selection) {
   const connection = await db.getConnection();
 
   try {
+    // En cas d'erreur, les suppressions et le changement de plan sont tous annulés.
     await connection.beginTransaction();
 
     if (normalizedSelection.depenseIds.length > 0) {
@@ -635,7 +650,10 @@ async function canCreateRevenu(userId, compteId) {
 
 async function getUserAbonnementStatus(userId) {
   const db = await getPool();
-  const abonnement = await getUserAbonnement(userId);
+  const [abonnement, premiumPlan] = await Promise.all([
+    getUserAbonnement(userId),
+    getAbonnementByCode(PLAN_CODES.PREMIUM),
+  ]);
 
   const [comptesCountRows, comptesDetailsRows] = await Promise.all([
     db.execute('SELECT COUNT(*) AS total FROM compte WHERE utilisateur_id = ?', [userId]),
@@ -662,6 +680,7 @@ async function getUserAbonnementStatus(userId) {
 
   return {
     abonnement,
+    plans: { premium: premiumPlan },
     usage: {
       comptes: buildUsageEntry(comptesLimit, comptesUsed),
       comptesDetails: comptesDetailsRows[0].map((row) => ({

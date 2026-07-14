@@ -12,6 +12,7 @@ function parseDateValue(value) {
   }
 
   if (typeof value === 'string') {
+    // La date est créée en heure locale pour éviter un décalage d'un jour avec UTC.
     const normalized = value.includes('T') ? value.slice(0, 10) : value;
     const [year, month, day] = normalized.split('-').map((part) => Number(part));
     if (year && month && day) {
@@ -55,6 +56,7 @@ function addMonthsClamped(dateValue, months) {
   const targetMonthIndex = month + months;
   const monthStart = new Date(year, targetMonthIndex, 1);
   const monthEnd = getLastDayOfMonth(monthStart.getFullYear(), monthStart.getMonth());
+  // Le 31 janvier devient le dernier jour de février au lieu de passer en mars.
   return new Date(
     monthStart.getFullYear(),
     monthStart.getMonth(),
@@ -178,6 +180,7 @@ function buildMonthlyTimeline(compte, targetDate, occurrences) {
       occurrenceIndex += 1;
     }
 
+    // Les opérations du mois sont appliquées avant le calcul des intérêts.
     let interetsMois = 0;
     if (monthlyRate > 0 && balance > 0) {
       interetsMois = roundCurrency(balance * monthlyRate * (1 - taxRate));

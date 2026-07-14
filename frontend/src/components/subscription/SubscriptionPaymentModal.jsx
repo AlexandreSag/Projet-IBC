@@ -6,6 +6,7 @@ import {
   formatExchangeRate,
   formatWalletAddress,
 } from './subscriptionUtils.js';
+import { formatTokenUnits } from '../../lib/subscriptionContracts.js';
 
 function formatDateTime(value) {
   if (!value) {
@@ -16,14 +17,14 @@ function formatDateTime(value) {
   return Number.isNaN(date.getTime()) ? 'Non disponible' : date.toLocaleString('fr-FR');
 }
 
-function computeEstimatedPremiumEnd(currentExpiry, durationMonths) {
+function computeEstimatedPremiumEnd(currentExpiry, durationMonths, billingPeriodDays = 30) {
   const currentDate = currentExpiry ? new Date(currentExpiry) : null;
   const baseDate = currentDate && currentDate.getTime() > Date.now()
     ? currentDate
     : new Date();
 
   const nextDate = new Date(baseDate);
-  nextDate.setMonth(nextDate.getMonth() + Number(durationMonths || 1));
+  nextDate.setDate(nextDate.getDate() + Number(durationMonths || 1) * billingPeriodDays);
   return nextDate;
 }
 
@@ -31,6 +32,7 @@ export default function SubscriptionPaymentModal({
   paymentIntent,
   activePlan,
   renewal,
+  isPremium,
   selectedMethod,
   onMethodChange,
   durationMonths,
@@ -73,7 +75,17 @@ export default function SubscriptionPaymentModal({
     || isConfirmingPayment
     || isFinalizingPayment
     || isSubmittingUsdc;
-  const estimatedPremiumEnd = isEthMethod ? computeEstimatedPremiumEnd(activePlan?.expiresAt, durationMonths) : null;
+  const estimatedPremiumEnd = isEthMethod
+    ? computeEstimatedPremiumEnd(
+      activePlan?.expiresAt,
+      durationMonths,
+      Number(renewal?.config?.billingPeriodDays || 30),
+    )
+    : null;
+  const monthlyTokenPrice = formatTokenUnits(
+    renewal?.config?.monthlyPriceUnits,
+    Number(renewal?.config?.tokenDecimals || 6),
+  );
 
   const primaryLabel = isEthMethod
     ? (isConnectingWallet
@@ -89,7 +101,11 @@ export default function SubscriptionPaymentModal({
               : isConnected
                 ? 'Payer avec le wallet'
                 : 'Connecter un wallet')
-    : (isSubmittingUsdc ? `Paiement ${tokenSymbol}...` : `Payer en ${tokenSymbol} avec renouvellement`);
+    : (isSubmittingUsdc
+      ? 'Activation...'
+      : isPremium
+        ? `Activer le renouvellement en ${tokenSymbol}`
+        : `Payer en ${tokenSymbol} avec renouvellement`);
 
   return (
     <div className="dashboard-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="payment-title">
@@ -100,9 +116,13 @@ export default function SubscriptionPaymentModal({
               <i className="fa-solid fa-shield-halved" aria-hidden="true" />
               Paiement sécurisé
             </p>
-            <h2 id="payment-title">Choisissez votre mode de paiement</h2>
+            <h2 id="payment-title">
+              {isPremium ? 'Activer le renouvellement automatique' : 'Choisissez votre mode de paiement'}
+            </h2>
             <p className="subscription-payment-subtitle">
-              Ethereum active le Premium immédiatement. {tokenSymbol} active aussi le renouvellement automatique.
+              {isPremium
+                ? `Autorisez le prélèvement mensuel en ${tokenSymbol}.`
+                : `Ethereum active le Premium immédiatement. ${tokenSymbol} active aussi le renouvellement automatique.`}
             </p>
           </div>
           <button
@@ -115,23 +135,25 @@ export default function SubscriptionPaymentModal({
           </button>
         </div>
 
-        <section className="subscription-payment-methods" aria-label="Modes de paiement">
-          <button
-            type="button"
-            className={`subscription-payment-method${isEthMethod ? ' active' : ''}`}
-            onClick={() => onMethodChange('eth')}
-          >
-            Ethereum
-          </button>
-          <button
-            type="button"
-            className={`subscription-payment-method${isUsdcMethod ? ' active' : ''}`}
-            onClick={() => onMethodChange('usdc')}
-            disabled={!renewal?.autoRenewalAvailable}
-          >
-            {tokenSymbol} + renouvellement
-          </button>
-        </section>
+        {!isPremium && (
+          <section className="subscription-payment-methods" aria-label="Modes de paiement">
+            <button
+              type="button"
+              className={`subscription-payment-method${isEthMethod ? ' active' : ''}`}
+              onClick={() => onMethodChange('eth')}
+            >
+              Ethereum
+            </button>
+            <button
+              type="button"
+              className={`subscription-payment-method${isUsdcMethod ? ' active' : ''}`}
+              onClick={() => onMethodChange('usdc')}
+              disabled={!renewal?.autoRenewalAvailable}
+            >
+              {tokenSymbol} + renouvellement
+            </button>
+          </section>
+        )}
 
         <section className="subscription-payment-wallet-bar">
           <div className="subscription-payment-wallet-main">
@@ -254,7 +276,7 @@ export default function SubscriptionPaymentModal({
             <div className="subscription-payment-summary-head">
               <div>
                 <span className="subscription-payment-summary-label">Montant mensuel</span>
-                <strong>9.99 {tokenSymbol}</strong>
+                <strong>{monthlyTokenPrice} {tokenSymbol}</strong>
               </div>
               <div>
                 <span className="subscription-payment-summary-label">Renouvellement</span>

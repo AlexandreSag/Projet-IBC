@@ -4,9 +4,9 @@ import { createWalletClient, encodeFunctionData, erc20Abi, parseEther } from 'vi
 import { requestJson, useAuth } from '../context/AuthContext.jsx';
 import {
   anvilLocalChain,
-  anvilPublicClient,
   createBrowserWalletClient,
   getEthereumProvider,
+  waitForSuccessfulAnvilReceipt,
 } from '../lib/walletConfig.js';
 import { subscriptionCoreAbi } from '../lib/subscriptionContracts.js';
 import SubscriptionBenefitsSection from './subscription/SubscriptionBenefitsSection.jsx';
@@ -46,7 +46,13 @@ export default function SubscriptionPage() {
   const isConnected = Boolean(walletAddress) && !walletSessionDisconnected;
   const isOnAnvilChain = walletChainId === anvilLocalChain.id;
   const activePlan = status?.abonnement || abonnement;
+  const premiumPlan = status?.plans?.premium || null;
   const renewal = activePlan?.renewal || null;
+  const canActivateUsdcRenewal = Boolean(
+    isPremium
+    && renewal?.autoRenewalAvailable
+    && !renewal?.autoRenewalReady,
+  );
 
   const loadStatus = useCallback(async (signal) => {
     setLoading(true);
@@ -188,7 +194,7 @@ export default function SubscriptionPage() {
   }, [activePlan, status]);
 
   const handlePremiumAction = async () => {
-    if (isPremium || isLoadingPaymentIntent) {
+    if ((isPremium && !canActivateUsdcRenewal) || isLoadingPaymentIntent) {
       return;
     }
 
@@ -196,8 +202,9 @@ export default function SubscriptionPage() {
     setInfoMessage(null);
     setPaymentError(null);
     setPaymentInfoMessage(null);
-    setSelectedPaymentMethod('eth');
+    setSelectedPaymentMethod(isPremium ? 'usdc' : 'eth');
     setEthDurationMonths(1);
+    setPaymentIntent(null);
     setPaymentHash(null);
     setIsPaymentConfirmed(false);
     setShowPaymentModal(true);
@@ -389,7 +396,7 @@ export default function SubscriptionPage() {
       setPaymentInfoMessage('Transaction envoyée, en attente de confirmation.');
 
       setIsConfirmingPayment(true);
-      await anvilPublicClient.waitForTransactionReceipt({ hash });
+      await waitForSuccessfulAnvilReceipt(hash);
       setIsPaymentConfirmed(true);
       setIsFinalizingPayment(true);
 
@@ -443,7 +450,7 @@ export default function SubscriptionPage() {
           args: [config.subscriptionCoreAddress, approveAmount],
         }),
       });
-      await anvilPublicClient.waitForTransactionReceipt({ hash: approveHash });
+      await waitForSuccessfulAnvilReceipt(approveHash);
 
       // Le paiement USDC demande deux signatures : l'autorisation puis l'activation du renouvellement.
       const enableHash = await walletClient.sendTransaction({
@@ -455,7 +462,7 @@ export default function SubscriptionPage() {
           args: [monthlyPriceUnits],
         }),
       });
-      await anvilPublicClient.waitForTransactionReceipt({ hash: enableHash });
+      await waitForSuccessfulAnvilReceipt(enableHash);
 
       const endpoint = activatePremiumNow
         ? '/api/me/abonnement/usdc-auto-subscription'
@@ -492,11 +499,7 @@ export default function SubscriptionPage() {
   };
 
   const handleUsdcSubscriptionAction = async () => {
-    if (isPremium) {
-      return;
-    }
-
-    await runUsdcAutoRenewFlow({ activatePremiumNow: true });
+    await runUsdcAutoRenewFlow({ activatePremiumNow: !isPremium });
   };
 
   const handleAddUsdcToWallet = async () => {
@@ -563,6 +566,8 @@ export default function SubscriptionPage() {
 
         <SubscriptionPlansSection
           isPremium={isPremium}
+          canActivateUsdcRenewal={canActivateUsdcRenewal}
+          premiumPlan={premiumPlan}
           isLoadingPaymentIntent={isLoadingPaymentIntent}
           isLoadingUsdcSubscription={isSubmittingAutoRenewal}
           onPremiumAction={handlePremiumAction}
@@ -575,6 +580,7 @@ export default function SubscriptionPage() {
         paymentIntent={showPaymentModal ? paymentIntent : null}
         activePlan={activePlan}
         renewal={renewal}
+        isPremium={isPremium}
         selectedMethod={showPaymentModal ? selectedPaymentMethod : null}
         onMethodChange={setSelectedPaymentMethod}
         durationMonths={ethDurationMonths}

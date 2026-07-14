@@ -1,4 +1,5 @@
 import { freePlanFeatures, premiumPlanFeatures } from './subscriptionData.js';
+import { formatAmount } from './subscriptionUtils.js';
 
 function FeatureList({ features, premium = false }) {
   return (
@@ -18,6 +19,8 @@ function FeatureList({ features, premium = false }) {
 
 export default function SubscriptionPlansSection({
   isPremium,
+  canActivateUsdcRenewal,
+  premiumPlan,
   isLoadingPaymentIntent,
   isLoadingUsdcSubscription,
   onPremiumAction,
@@ -68,7 +71,7 @@ export default function SubscriptionPlansSection({
           </div>
 
           <div className="subscription-plan-price-block">
-            <strong>9.99 €</strong>
+            <strong>{premiumPlan ? formatAmount(premiumPlan.prix) : '...'}</strong>
             <span>/mois</span>
           </div>
           <p className="subscription-plan-crypto-price">Le montant en ETH est affiché à l’étape de paiement.</p>
@@ -80,9 +83,17 @@ export default function SubscriptionPlansSection({
             type="button"
             className="btn primary subscription-plan-action"
             onClick={onPremiumAction}
-            disabled={isPremium || isLoadingPaymentIntent || isLoadingUsdcSubscription}
+            disabled={
+              (isPremium && !canActivateUsdcRenewal)
+              || isLoadingPaymentIntent
+              || isLoadingUsdcSubscription
+            }
           >
-            {isPremium ? 'Plan actif' : isLoadingPaymentIntent ? 'Préparation...' : 'Payer'}
+            {isPremium
+              ? (canActivateUsdcRenewal ? 'Activer le renouvellement USDC' : 'Plan actif')
+              : isLoadingPaymentIntent
+                ? 'Préparation...'
+                : 'Payer'}
           </button>
         </article>
       </div>

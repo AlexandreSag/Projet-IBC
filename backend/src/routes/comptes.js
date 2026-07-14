@@ -174,25 +174,37 @@ router.put('/:id', async (req, res, next) => {
 });
 
 router.delete('/:id', async (req, res, next) => {
+  let connection;
   try {
     const db = await getPool();
+    connection = await db.getConnection();
     const userId = req.auth.sub;
+    await connection.beginTransaction();
 
-    const [rows] = await db.execute(
-      'SELECT * FROM compte WHERE id = ? AND utilisateur_id = ?',
+    const [rows] = await connection.execute(
+      'SELECT id FROM compte WHERE id = ? AND utilisateur_id = ? FOR UPDATE',
       [req.params.id, userId],
     );
     if (rows.length === 0) {
+      await connection.rollback();
       return res.status(404).json({ error: 'Compte introuvable.' });
     }
 
-    await db.execute('DELETE FROM depense WHERE compte_id = ?', [req.params.id]);
-    await db.execute('DELETE FROM revenu WHERE compte_id = ?', [req.params.id]);
-    await db.execute('DELETE FROM compte WHERE id = ?', [req.params.id]);
+    await connection.execute('DELETE FROM partage_invitation WHERE compte_id = ?', [req.params.id]);
+    await connection.execute('DELETE FROM partage WHERE compte_id = ?', [req.params.id]);
+    await connection.execute('DELETE FROM depense WHERE compte_id = ?', [req.params.id]);
+    await connection.execute('DELETE FROM revenu WHERE compte_id = ?', [req.params.id]);
+    await connection.execute('DELETE FROM compte WHERE id = ?', [req.params.id]);
+    await connection.commit();
 
     return res.json({ message: 'Compte supprimé.' });
   } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
     return next(error);
+  } finally {
+    connection?.release();
   }
 });
 

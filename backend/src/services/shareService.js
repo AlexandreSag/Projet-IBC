@@ -203,6 +203,7 @@ async function getSharedAccountDetailForUser(userId, shareId) {
 
   const comptePrevision = prevision.comptes.find((compte) => Number(compte.id) === Number(share.compte_id));
 
+  // Le solde est calculé avec les données du propriétaire du compte partagé.
   return {
     share: {
       id: Number(share.id),
@@ -305,6 +306,7 @@ async function createShareInvitation({ ownerId, compteId, invitedEmail, appBaseU
   const expiresAt = getInvitationExpiresAt();
   const inviteeId = invitee?.id || null;
 
+  // La base garde seulement le hash. Le token complet reste dans le lien envoyé par email.
   const [result] = await db.execute(
     `INSERT INTO partage_invitation (
       compte_id,
@@ -411,6 +413,7 @@ async function acceptInvitation(userId, token) {
 
   const connection = await db.getConnection();
   try {
+    // Le partage et l'acceptation de l'invitation sont enregistrés ensemble.
     await connection.beginTransaction();
 
     const [existingShareRows] = await connection.execute(

@@ -29,6 +29,14 @@ export const anvilPublicClient = createPublicClient({
   transport: http(rpcUrl),
 });
 
+export async function waitForSuccessfulAnvilReceipt(hash) {
+  const receipt = await anvilPublicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') {
+    throw new Error('La transaction blockchain a échoué.');
+  }
+  return receipt;
+}
+
 export function getEthereumProvider() {
   if (typeof window === 'undefined') {
     return null;

@@ -6,6 +6,13 @@ export const subscriptionCoreAbi = [
     inputs: [{ name: 'maxTokenAmountPerCharge', type: 'uint256' }],
     outputs: [],
   },
+  {
+    type: 'function',
+    name: 'disableAutoRenew',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [],
+  },
 ];
 
 export function formatTokenUnits(units, decimals = 6) {
