@@ -65,6 +65,7 @@ export function buildTransactionsFromRules(
       }
     } else if (Number.isInteger(frequency) && frequency > 0) {
       const cursor = new Date(startDate);
+      // On saute les anciennes occurrences pour ne générer que la période affichée.
       while (windowStartDate && cursor < windowStartDate) {
         cursor.setMonth(cursor.getMonth() + frequency);
       }

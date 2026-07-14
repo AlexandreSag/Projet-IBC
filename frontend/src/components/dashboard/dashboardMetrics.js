@@ -10,6 +10,7 @@ function countOccurrencesInRange(rule, rangeStart, rangeEnd) {
   if (!start) return 0;
 
   const now = new Date();
+  // On s'arrête à aujourd'hui pour ne pas compter les opérations prévues plus tard dans le mois.
   const limitDate = new Date(Math.min(rangeEnd.getTime(), now.getTime()));
   const end = rule.date_fin ? parseDateValue(rule.date_fin) : null;
   const effectiveEnd = end && end < limitDate ? end : limitDate;

@@ -186,6 +186,7 @@ function VerifyEmailPage() {
       try {
         let request = verificationRequests.get(token);
         if (!request) {
+          // En développement, React peut relancer cet effet. On garde la requête pour ne pas utiliser deux fois le token.
           request = requestJson(`/api/verify-email?token=${encodeURIComponent(token)}`, {
             method: 'GET',
           });
@@ -265,6 +266,7 @@ function ProtectedRoute({ children }) {
   const cleanupRequired = Boolean(user?.abonnement?.cleanupRequired);
   const isSettingsRoute = location.pathname.startsWith('/settings');
 
+  // Tant que les quotas gratuits sont dépassés, l'utilisateur doit terminer le nettoyage dans les paramètres.
   if (cleanupRequired && !isSettingsRoute) {
     return <Navigate to="/settings?cleanup=1" replace state={{ from: location.pathname }} />;
   }

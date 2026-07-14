@@ -12,6 +12,7 @@ export default function usePrevisionsData() {
   const [prevision, setPrevision] = useState(null);
 
   useEffect(() => {
+    // Si le mois change avant la réponse, les données de l'ancienne requête sont ignorées.
     let ignore = false;
 
     async function loadPrevision() {

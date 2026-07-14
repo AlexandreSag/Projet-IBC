@@ -32,6 +32,7 @@ export default function SubscriptionPage() {
   const [paymentIntent, setPaymentIntent] = useState(null);
   const [walletAddress, setWalletAddress] = useState(null);
   const [walletChainId, setWalletChainId] = useState(null);
+  // Les wallets ne proposent pas tous une vraie déconnexion. Ici, seule la session Budgie est coupée.
   const [walletSessionDisconnected, setWalletSessionDisconnected] = useState(false);
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [isSwitchingChain, setIsSwitchingChain] = useState(false);
@@ -144,6 +145,7 @@ export default function SubscriptionPage() {
     const accountsUsage = status?.usage?.comptes || null;
     const accountDetails = status?.usage?.comptesDetails || [];
 
+    // Les limites sont calculées par compte. La carte affiche donc le compte le plus utilisé.
     const depensesUsage = accountDetails.reduce(
       (accumulator, account) => {
         if (account.depenses.used > accumulator.used) {
@@ -324,6 +326,7 @@ export default function SubscriptionPage() {
           params: [{ chainId: chainHex }],
         });
       } catch (switchError) {
+        // Le code 4902 indique que le réseau Anvil n'a pas encore été ajouté dans MetaMask.
         if (switchError?.code === 4902) {
           await provider.request({
             method: 'wallet_addEthereumChain',
@@ -390,6 +393,7 @@ export default function SubscriptionPage() {
       setIsPaymentConfirmed(true);
       setIsFinalizingPayment(true);
 
+      // Après la confirmation du wallet, le backend vérifie encore l'adresse et le montant de la transaction.
       const confirmation = await requestJson('/api/me/abonnement/payment-confirmation', {
         method: 'POST',
         body: JSON.stringify({
@@ -427,6 +431,7 @@ export default function SubscriptionPage() {
       const { account, walletClient } = await ensureWalletReady();
       const monthlyPriceUnits = BigInt(config.monthlyPriceUnits || '0');
       const approvalMonths = BigInt(config.approvalMonths || 12);
+      // Le montant autorisé correspond au nombre de mois configuré, pas à une autorisation illimitée.
       const approveAmount = monthlyPriceUnits * approvalMonths;
 
       const approveHash = await walletClient.sendTransaction({
@@ -440,6 +445,7 @@ export default function SubscriptionPage() {
       });
       await anvilPublicClient.waitForTransactionReceipt({ hash: approveHash });
 
+      // Le paiement USDC demande deux signatures : l'autorisation puis l'activation du renouvellement.
       const enableHash = await walletClient.sendTransaction({
         account,
         to: config.subscriptionCoreAddress,
