@@ -3,17 +3,14 @@ import DashboardAccountModal from './dashboard/DashboardAccountModal.jsx';
 import DashboardPrevisionsTab from './dashboard/DashboardPrevisionsTab.jsx';
 import DashboardOverviewTab from './dashboard/DashboardOverviewTab.jsx';
 import DashboardTransactionsTab from './dashboard/DashboardTransactionsTab.jsx';
-import DashboardPlaceholderTab from './dashboard/DashboardPlaceholderTab.jsx';
 import DashboardSharingTab from './dashboard/DashboardSharingTab.jsx';
 import DashboardTopbar from './dashboard/DashboardTopbar.jsx';
 import {
   accountPresets,
-  chartMax,
   createEditableAccountForm,
   createEmptyAccountForm,
   dashboardTabs,
   hasPresetRates,
-  monthlyData,
 } from './dashboard/dashboardConfig.js';
 import { buildSummaryCards } from './dashboard/dashboardMetrics.js';
 import useDashboardData from './dashboard/useDashboardData.js';
@@ -120,8 +117,6 @@ export default function DashboardPage() {
           onOpenAddModal={() => setShowAddModal(true)}
           onEditAccount={handleEditAccount}
           onDeleteAccount={handleDeleteAccount}
-          monthlyData={monthlyData}
-          chartMax={chartMax}
         />
       );
     }
@@ -151,7 +146,7 @@ export default function DashboardPage() {
       return <DashboardSharingTab comptes={comptes} />;
     }
 
-    return <DashboardPlaceholderTab />;
+    return null;
   };
 
   const summaryCards = buildSummaryCards({ comptes, depenses, revenus });

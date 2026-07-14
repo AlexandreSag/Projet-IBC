@@ -73,12 +73,5 @@ export function buildSummaryCards({ comptes, depenses, revenus }) {
       tone: 'negative',
       icon: 'fa-solid fa-arrow-down',
     },
-    {
-      title: 'Économies',
-      amount: '1 300,00 €',
-      detail: '40.6% du revenu',
-      tone: 'info',
-      icon: 'fa-solid fa-star',
-    },
   ];
 }

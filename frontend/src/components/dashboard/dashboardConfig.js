@@ -1,22 +1,9 @@
 import { formatDateForInput, getTodayIsoDate } from '../../utils/dateUtils';
 
-export const monthlyData = [
-  { month: 'Avr', revenus: 3200, depenses: 2100 },
-  { month: 'Mai', revenus: 3200, depenses: 2300 },
-  { month: 'Juin', revenus: 3400, depenses: 2200 },
-  { month: 'Juil', revenus: 3200, depenses: 2400 },
-  { month: 'Août', revenus: 3500, depenses: 2800 },
-  { month: 'Sept', revenus: 3200, depenses: 2200 },
-  { month: 'Oct', revenus: 3200, depenses: 1900 },
-];
-
-export const chartMax = 3600;
-
 export const dashboardTabs = [
   { id: 'overview', label: 'Vue d\'ensemble', icon: 'fa-solid fa-house' },
   { id: 'transactions', label: 'Transactions', icon: 'fa-solid fa-wallet' },
   { id: 'previsions', label: 'Prévisions', icon: 'fa-solid fa-chart-line' },
-  { id: 'exceptions', label: 'Exceptions', icon: 'fa-solid fa-triangle-exclamation' },
   { id: 'sharing', label: 'Partage', icon: 'fa-solid fa-share-nodes' },
 ];
 

@@ -1,24 +1,8 @@
 import { useMemo, useState } from 'react';
 import './DashboardTransactionsTab.css';
 import { buildTransactionsFromRules } from '../../utils/transactionHelpers';
-import DashboardTransactionsStats from './DashboardTransactionsStats';
 import DashboardTransactionsList from './DashboardTransactionsList';
 import DashboardTransactionManagerModal from './DashboardTransactionManagerModal';
-
-const budgetsPlaceholder = [
-  { id: 'alimentation', label: 'Alimentation', spent: 450, limit: 600 },
-  { id: 'transport', label: 'Transport', spent: 280, limit: 300 },
-  { id: 'loisirs', label: 'Loisirs', spent: 180, limit: 250 },
-  { id: 'shopping', label: 'Shopping', spent: 120, limit: 200 },
-];
-
-const categoriesPlaceholder = [
-  { id: 'alimentation', label: 'Alimentation', share: 24 },
-  { id: 'logement', label: 'Logement', share: 45 },
-  { id: 'transport', label: 'Transport', share: 15 },
-  { id: 'loisirs', label: 'Loisirs', share: 9 },
-  { id: 'autres', label: 'Autres', share: 7 },
-];
 
 export default function DashboardTransactionsTab({
   depenses,
@@ -84,8 +68,6 @@ export default function DashboardTransactionsTab({
 
   return (
     <>
-      <DashboardTransactionsStats budgets={budgetsPlaceholder} categories={categoriesPlaceholder} />
-
       <DashboardTransactionsList
         transactions={filteredTransactions}
         loading={loadingTransactions}

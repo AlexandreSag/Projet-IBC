@@ -69,9 +69,6 @@ export default function DashboardTopbar({
             Passer à Premium
           </button>
         )}
-        <button type="button" className="dashboard-icon-btn" aria-label="Notifications">
-          <i className="fa-regular fa-bell" aria-hidden="true" />
-        </button>
         <button
           type="button"
           className={`dashboard-icon-btn${activeAction === 'settings' ? ' active' : ''}`}

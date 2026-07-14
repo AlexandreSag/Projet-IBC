@@ -95,78 +95,6 @@
   background: rgba(244, 63, 94, 0.06);
 }
 
-.dashboard-chart-placeholder {
-  border: 1px dashed var(--couleur-bordure-forte);
-  background: linear-gradient(180deg, #f8fdfd 0%, #f4fbfd 100%);
-  border-radius: 14px;
-  padding: 1rem 0.85rem 0.65rem;
-  overflow-x: auto;
-}
-
-.dashboard-chart-grid {
-  height: 270px;
-  display: grid;
-  grid-template-columns: repeat(7, minmax(54px, 1fr));
-  gap: 0.75rem;
-  align-items: end;
-  min-width: 420px;
-}
-
-.dashboard-chart-column {
-  height: 100%;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0.25rem;
-  position: relative;
-  padding-bottom: 1.4rem;
-}
-
-.dashboard-chart-column span {
-  position: absolute;
-  bottom: 0.2rem;
-  font-size: 0.84rem;
-  color: var(--couleur-texte-3);
-}
-
-.dashboard-chart-bar {
-  width: 44%;
-  border-radius: 8px 8px 4px 4px;
-  min-height: 24px;
-}
-
-.dashboard-chart-bar.depenses {
-  background: #13b4d2;
-}
-
-.dashboard-chart-bar.revenus {
-  background: #14b8a6;
-}
-
-.dashboard-chart-legend {
-  margin-top: 0.35rem;
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  color: var(--couleur-texte-2);
-  font-weight: 600;
-  flex-wrap: wrap;
-}
-
-.dashboard-chart-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.dashboard-chart-legend span:first-child i {
-  color: #13b4d2;
-}
-
-.dashboard-chart-legend span:last-child i {
-  color: #14b8a6;
-}
-
 @media (max-width: 720px) {
   .dashboard-account-item {
     display: grid;
@@ -220,16 +148,6 @@
     color: #0f172a;
   }
 
-  .dashboard-chart-grid {
-    height: 230px;
-    min-width: 360px;
-    grid-template-columns: repeat(7, minmax(42px, 1fr));
-    gap: 0.35rem;
-  }
-
-  .dashboard-chart-bar {
-    width: 46%;
-  }
 }
 
 @media (max-width: 420px) {

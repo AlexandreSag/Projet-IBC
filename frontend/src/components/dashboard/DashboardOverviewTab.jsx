@@ -6,8 +6,6 @@ export default function DashboardOverviewTab({
   onOpenAddModal,
   onEditAccount,
   onDeleteAccount,
-  monthlyData,
-  chartMax,
 }) {
   const euroFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 
@@ -67,37 +65,6 @@ export default function DashboardOverviewTab({
         </div>
       </section>
 
-      <section className="dashboard-panel">
-        <div className="dashboard-panel-header">
-          <div>
-            <h2>
-              <i className="fa-solid fa-chart-column" aria-hidden="true" /> Évolution mensuelle
-            </h2>
-            <p>Comparaison revenus vs dépenses</p>
-          </div>
-        </div>
-        <div className="dashboard-chart-placeholder">
-          <div className="dashboard-chart-grid">
-            {monthlyData.map((item) => (
-              <div key={item.month} className="dashboard-chart-column">
-                <div
-                  className="dashboard-chart-bar revenus"
-                  style={{ height: `${(item.revenus / chartMax) * 100}%` }}
-                />
-                <div
-                  className="dashboard-chart-bar depenses"
-                  style={{ height: `${(item.depenses / chartMax) * 100}%` }}
-                />
-                <span>{item.month}</span>
-              </div>
-            ))}
-          </div>
-          <div className="dashboard-chart-legend">
-            <span><i className="fa-solid fa-square" aria-hidden="true" /> Dépenses</span>
-            <span><i className="fa-solid fa-square" aria-hidden="true" /> Revenus</span>
-          </div>
-        </div>
-      </section>
     </>
   );
 }
