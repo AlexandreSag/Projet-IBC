@@ -59,6 +59,23 @@ function normalizeTransactionHash(value) {
   return normalized.startsWith('0x') ? normalized : `0x${normalized}`;
 }
 
+async function assertTransactionHashAvailable(paymentIntentId, transactionHash) {
+  const db = await getPool();
+  const [rows] = await db.execute(
+    `SELECT id
+     FROM abonnement_paiement
+     WHERE transaction_hash = ? AND id <> ?
+     LIMIT 1`,
+    [transactionHash, paymentIntentId],
+  );
+
+  if (rows.length > 0) {
+    const error = new Error('Cette transaction a déjà été utilisée.');
+    error.statusCode = 409;
+    throw error;
+  }
+}
+
 function decimalToWei(value) {
   const [wholePartRaw, fractionPartRaw = ''] = String(value ?? '0').trim().split('.');
   const wholePart = wholePartRaw.replace(/\D/g, '') || '0';
@@ -114,13 +131,18 @@ async function fetchEthEurRate() {
   return rate;
 }
 
-async function resolvePremiumEthAmount(montantEur) {
+async function resolvePremiumEthAmount(montantEur, durationMonths = 1) {
   const eurAmount = Number(montantEur);
+  const fallbackAmount = roundUpToDecimals(
+    ETHEREUM_PAYMENT.fallbackAmountForPremium * normalizeDurationMonths(durationMonths),
+    8,
+  );
   if (!Number.isFinite(eurAmount) || eurAmount <= 0) {
-    return ETHEREUM_PAYMENT.fallbackAmountForPremium;
+    return fallbackAmount;
   }
 
   try {
+    // Le taux est gardé cinq minutes pour éviter un appel Coinbase à chaque ouverture de modale.
     const ethEurRate = await fetchEthEurRate();
     const computedAmount = roundUpToDecimals(eurAmount / ethEurRate, 8);
     if (Number.isFinite(computedAmount) && computedAmount > 0) {
@@ -130,7 +152,7 @@ async function resolvePremiumEthAmount(montantEur) {
     console.warn('[abonnementPaymentService] Fallback montant ETH premium:', error.message);
   }
 
-  return ETHEREUM_PAYMENT.fallbackAmountForPremium;
+  return fallbackAmount;
 }
 
 async function rpcRequest(method, params = []) {
@@ -293,7 +315,7 @@ async function createPaymentIntentForUser(userId, { planCode, cryptoCode, durati
   const db = await getPool();
   const expiresAt = buildExpiresAt();
   const montantEur = Number(plan.prix || 0) * normalizedDurationMonths;
-  const montantCrypto = await resolvePremiumEthAmount(montantEur);
+  const montantCrypto = await resolvePremiumEthAmount(montantEur, normalizedDurationMonths);
 
   const [result] = await db.execute(
     `INSERT INTO abonnement_paiement (
@@ -366,6 +388,7 @@ async function confirmPaymentIntentForUser(userId, paymentIntentId, transactionH
   }
 
   const normalizedHash = normalizeTransactionHash(transactionHash);
+  await assertTransactionHashAvailable(row.id, normalizedHash);
   const transaction = await rpcRequest('eth_getTransactionByHash', [normalizedHash]);
 
   if (!transaction) {
@@ -415,13 +438,19 @@ async function confirmPaymentIntentForUser(userId, paymentIntentId, transactionH
   const connection = await db.getConnection();
 
   try {
+    // Le paiement et l'activation Premium sont validés ensemble ou annulés ensemble.
     await connection.beginTransaction();
-    await connection.execute(
+    const [paymentUpdate] = await connection.execute(
       `UPDATE abonnement_paiement
        SET status = ?, transaction_hash = ?, confirmed_at = NOW()
-       WHERE id = ? AND utilisateur_id = ?`,
-      [PAYMENT_STATUS.CONFIRMED, normalizedHash, row.id, userId],
+       WHERE id = ? AND utilisateur_id = ? AND status = ?`,
+      [PAYMENT_STATUS.CONFIRMED, normalizedHash, row.id, userId, PAYMENT_STATUS.PENDING],
     );
+    if (paymentUpdate.affectedRows !== 1) {
+      const conflict = new Error('Ce paiement est déjà en cours de confirmation.');
+      conflict.statusCode = 409;
+      throw conflict;
+    }
     await subscriptionLifecycleService.activatePremiumPlan(userId, {
       planId: row.abonnement_id,
       durationMonths: normalizeDurationMonths(row.duration_months),
@@ -433,6 +462,11 @@ async function confirmPaymentIntentForUser(userId, paymentIntentId, transactionH
     await connection.commit();
   } catch (error) {
     await connection.rollback();
+    if (error.code === 'ER_DUP_ENTRY') {
+      const conflict = new Error('Cette transaction a déjà été utilisée.');
+      conflict.statusCode = 409;
+      throw conflict;
+    }
     throw error;
   } finally {
     connection.release();

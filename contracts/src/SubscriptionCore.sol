@@ -8,6 +8,7 @@ interface IERC20Like {
 }
 
 contract SubscriptionCore {
+    // Une mensualité correspond à 30 jours sur la blockchain de démonstration.
     uint256 public constant BILLING_PERIOD = 30 days;
 
     struct AutoRenewConfig {
@@ -84,6 +85,7 @@ contract SubscriptionCore {
         uint256 chargedWei = msg.value - refundWei;
         AutoRenewConfig storage config = autoRenewConfigs[msg.sender];
 
+        // Un paiement en avance prolonge la période déjà payée.
         config.paidUntil = _extendPaidUntil(config.paidUntil, monthsGranted);
 
         (bool treasurySuccess, ) = treasury.call{value: chargedWei}("");
@@ -105,6 +107,7 @@ contract SubscriptionCore {
     }
 
     function enableAutoRenew(uint256 maxTokenAmountPerCharge) external {
+        // Le client limite le montant autorisé pour chaque prélèvement.
         require(maxTokenAmountPerCharge >= tokenMonthlyPrice, "Max charge too low");
 
         AutoRenewConfig storage config = autoRenewConfigs[msg.sender];
@@ -154,6 +157,7 @@ contract SubscriptionCore {
         require(stableToken.allowance(subscriber, address(this)) >= tokenMonthlyPrice, "Allowance too low");
         require(stableToken.balanceOf(subscriber) >= tokenMonthlyPrice, "Balance too low");
 
+        // Les USDC passent directement du wallet client à la trésorerie.
         bool success = stableToken.transferFrom(subscriber, treasury, tokenMonthlyPrice);
         require(success, "Token transfer failed");
 

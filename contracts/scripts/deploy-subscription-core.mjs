@@ -14,6 +14,7 @@ const currentFilePath = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(currentFilePath), '..');
 const artifactPath = path.join(rootDir, 'artifacts', 'SubscriptionCore.json');
 
+// L'adresse change après un reset Anvil et doit être recopiée dans le .env.
 if (!fs.existsSync(artifactPath)) {
   throw new Error('Artifact SubscriptionCore.json introuvable.');
 }

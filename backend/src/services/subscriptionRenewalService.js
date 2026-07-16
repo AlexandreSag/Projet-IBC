@@ -2,6 +2,7 @@ const { getPool } = require('../config/database');
 const { createPublicClient, http } = require('viem');
 const {
   AUTO_RENEW_APPROVAL_MONTHS,
+  BILLING_PERIOD_DAYS,
   ETH_CHAIN_ID,
   ETH_NETWORK_NAME,
   RENEWAL_MODES,
@@ -31,6 +32,39 @@ const subscriptionCoreReadAbi = [
   },
 ];
 
+const stableTokenReadAbi = [
+  {
+    type: 'function',
+    name: 'allowance',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+];
+
+function normalizeAddress(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function resolveConfiguredContractAddress(candidate = null) {
+  if (!SUBSCRIPTION_CORE_ADDRESS) {
+    const error = new Error('SubscriptionCore non configuré.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (candidate && normalizeAddress(candidate) !== normalizeAddress(SUBSCRIPTION_CORE_ADDRESS)) {
+    const error = new Error('Adresse de contrat invalide.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return SUBSCRIPTION_CORE_ADDRESS;
+}
+
 function buildRenewalConfig() {
   const autoRenewalAvailable = Boolean(SUBSCRIPTION_CORE_ADDRESS && USDC_TOKEN_ADDRESS);
 
@@ -42,6 +76,7 @@ function buildRenewalConfig() {
     tokenDecimals: USDC_TOKEN_DECIMALS,
     monthlyPriceUnits: USDC_MONTHLY_PRICE_UNITS.toString(),
     approvalMonths: AUTO_RENEW_APPROVAL_MONTHS,
+    billingPeriodDays: BILLING_PERIOD_DAYS,
   };
 }
 
@@ -119,6 +154,7 @@ function formatRenewalSettings(row) {
 
 async function ensureRenewalSettingsRow(userId, executor = null) {
   const db = executor || await getPool();
+  // La ligne est créée si besoin sans écraser une configuration existante.
   await db.execute(
     `INSERT INTO abonnement_renouvellement (
       utilisateur_id,
@@ -206,11 +242,26 @@ async function updateRenewalSettingsForUser(
     ? RENEWAL_STATUSES.PENDING_SETUP
     : RENEWAL_STATUSES.DISABLED;
   const config = buildRenewalConfig();
+  const contractAddress = config.autoRenewalAvailable
+    ? resolveConfiguredContractAddress(smartContractAddress)
+    : null;
 
   if (normalizedMode === RENEWAL_MODES.AUTOMATIC && !config.autoRenewalAvailable) {
     const error = new Error('Auto-renew USDC indisponible.');
     error.statusCode = 409;
     throw error;
+  }
+
+  if (normalizedMode === RENEWAL_MODES.MANUAL && config.autoRenewalAvailable) {
+    const current = await getRenewalSettingsForUser(userId, db);
+    if (current.mode === RENEWAL_MODES.AUTOMATIC && current.walletAddress) {
+      const onchain = await getOnchainAutoRenewState({ walletAddress: current.walletAddress });
+      if (onchain && (onchain.enabled || BigInt(onchain.allowance || '0') > 0n)) {
+        const error = new Error('Révoquez d’abord l’autorisation USDC dans votre wallet.');
+        error.statusCode = 409;
+        throw error;
+      }
+    }
   }
 
   await ensureRenewalSettingsRow(userId, db);
@@ -233,7 +284,7 @@ async function updateRenewalSettingsForUser(
       walletAddress,
       ETH_CHAIN_ID,
       ETH_NETWORK_NAME,
-      smartContractAddress,
+      contractAddress,
       mandateReference,
       userId,
     ],
@@ -263,6 +314,18 @@ async function activateRenewalSettingsForUser(
   if (!walletAddress) {
     const error = new Error('Adresse wallet requise.');
     error.statusCode = 400;
+    throw error;
+  }
+
+  const contractAddress = resolveConfiguredContractAddress(smartContractAddress);
+  const onchain = await getOnchainAutoRenewState({ walletAddress });
+  if (
+    !onchain?.enabled
+    || BigInt(onchain.maxTokenAmountPerCharge || '0') < USDC_MONTHLY_PRICE_UNITS
+    || BigInt(onchain.allowance || '0') < USDC_MONTHLY_PRICE_UNITS
+  ) {
+    const error = new Error('Le renouvellement USDC n’est pas correctement autorisé.');
+    error.statusCode = 409;
     throw error;
   }
 
@@ -299,7 +362,7 @@ async function activateRenewalSettingsForUser(
       walletAddress,
       ETH_CHAIN_ID,
       ETH_NETWORK_NAME,
-      smartContractAddress || SUBSCRIPTION_CORE_ADDRESS,
+      contractAddress,
       mandateReference,
       premiumExpiresAt,
       userId,
@@ -329,10 +392,11 @@ async function getOnchainAutoRenewState({
   walletAddress,
   smartContractAddress = null,
 } = {}) {
-  const contractAddress = smartContractAddress || SUBSCRIPTION_CORE_ADDRESS;
-  if (!walletAddress || !contractAddress) {
+  if (!walletAddress || !SUBSCRIPTION_CORE_ADDRESS || !USDC_TOKEN_ADDRESS) {
     return null;
   }
+
+  const contractAddress = resolveConfiguredContractAddress(smartContractAddress);
 
   const client = buildPublicClient();
   const bytecode = await client.getBytecode({ address: contractAddress });
@@ -340,16 +404,26 @@ async function getOnchainAutoRenewState({
     return null;
   }
 
-  const [enabled, maxTokenAmountPerCharge, nextChargeAt, paidUntil] = await client.readContract({
-    address: contractAddress,
-    abi: subscriptionCoreReadAbi,
-    functionName: 'autoRenewConfigs',
-    args: [walletAddress],
-  });
+  const [autoRenewConfig, allowance] = await Promise.all([
+    client.readContract({
+      address: contractAddress,
+      abi: subscriptionCoreReadAbi,
+      functionName: 'autoRenewConfigs',
+      args: [walletAddress],
+    }),
+    client.readContract({
+      address: USDC_TOKEN_ADDRESS,
+      abi: stableTokenReadAbi,
+      functionName: 'allowance',
+      args: [walletAddress, contractAddress],
+    }),
+  ]);
+  const [enabled, maxTokenAmountPerCharge, nextChargeAt, paidUntil] = autoRenewConfig;
 
   return {
     enabled: Boolean(enabled),
     maxTokenAmountPerCharge: maxTokenAmountPerCharge ? maxTokenAmountPerCharge.toString() : '0',
+    allowance: allowance ? allowance.toString() : '0',
     nextChargeAt: Number(nextChargeAt || 0),
     paidUntil: Number(paidUntil || 0),
     nextChargeAtDate: timestampToSqlDateTime(nextChargeAt),
@@ -380,7 +454,6 @@ async function syncRenewalCoverageFromChain(userId, executor = null) {
 
   const onchain = await getOnchainAutoRenewState({
     walletAddress: row.wallet_address,
-    smartContractAddress: row.smart_contract_address,
   });
 
   if (!onchain?.enabled || !onchain.paidUntilDate) {
@@ -418,6 +491,7 @@ module.exports = {
   getOnchainAutoRenewState,
   getRenewalSettingsForUser,
   markRenewalPausedForCancellation,
+  resolveConfiguredContractAddress,
   syncRenewalCoverageFromChain,
   updateRenewalPaymentContext,
   updateRenewalSettingsForUser,

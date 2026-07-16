@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS abonnement_paiement (
   confirmed_at DATETIME NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT uq_abonnement_paiement_transaction_hash UNIQUE (transaction_hash),
   CONSTRAINT fk_abonnement_paiement_utilisateur FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id),
   CONSTRAINT fk_abonnement_paiement_abonnement FOREIGN KEY (abonnement_id) REFERENCES abonnement(id),
   CONSTRAINT chk_abonnement_paiement_montant_eur CHECK (montant_eur >= 0),

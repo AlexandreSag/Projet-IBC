@@ -1,6 +1,7 @@
 const { getPool } = require('../config/database');
 const subscriptionRenewalService = require('./subscriptionRenewalService');
 const {
+  BILLING_PERIOD_DAYS,
   PLAN_CODES,
   PREMIUM_DURATION_MONTHS,
   SUBSCRIPTION_STATES,
@@ -31,7 +32,7 @@ function computeNextPremiumExpiry(currentExpiry, durationMonths = PREMIUM_DURATI
     ? new Date(currentExpiry)
     : new Date();
 
-  baseDate.setMonth(baseDate.getMonth() + durationMonths);
+  baseDate.setDate(baseDate.getDate() + durationMonths * BILLING_PERIOD_DAYS);
   return baseDate;
 }
 
@@ -70,6 +71,7 @@ async function activatePremiumPlan(
   } = {},
 ) {
   const db = executor || await getPool();
+  const durationDays = Math.max(1, Math.trunc(Number(durationMonths) || 1)) * BILLING_PERIOD_DAYS;
 
   await db.execute(
     `UPDATE utilisateur
@@ -79,12 +81,12 @@ async function activatePremiumPlan(
              WHEN premium_expires_at IS NOT NULL AND premium_expires_at > NOW() THEN premium_expires_at
              ELSE NOW()
            END,
-           INTERVAL ? MONTH
+           INTERVAL ? DAY
          ),
          premium_cancel_at_period_end = FALSE,
          quota_cleanup_required = FALSE
      WHERE id = ?`,
-    [planId, durationMonths, userId],
+    [planId, durationDays, userId],
   );
 
   const [rows] = await db.execute(

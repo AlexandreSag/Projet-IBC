@@ -96,9 +96,11 @@ services:
 
   anvil:
     image: ghcr.io/foundry-rs/foundry:latest
+    user: "0:0"
     entrypoint:
       - /bin/sh
       - -lc
+    stop_signal: SIGINT
     stop_grace_period: 15s
     environment:
       ANVIL_IP_ADDR: 0.0.0.0
@@ -106,11 +108,11 @@ services:
       ANVIL_FORK_BLOCK_NUMBER: ${ANVIL_FORK_BLOCK_NUMBER:-}
     command:
       - >
-        anvil
+        exec anvil
         --host 0.0.0.0
         --port 8545
         --chain-id 31337
-        --state /anvil-state
+        --state /anvil-state/state.json
         --state-interval 10
         $${ANVIL_FORK_URL:+ --fork-url "$${ANVIL_FORK_URL}"}
         $${ANVIL_FORK_BLOCK_NUMBER:+ --fork-block-number "$${ANVIL_FORK_BLOCK_NUMBER}"}

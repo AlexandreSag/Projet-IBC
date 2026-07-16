@@ -50,6 +50,7 @@ await publicClient.request({
   params: [whaleAddress, '0x3635C9ADC5DEA00000'],
 });
 
+// Anvil permet d'utiliser temporairement le wallet source sur le fork local.
 await publicClient.request({
   method: 'anvil_impersonateAccount',
   params: [whaleAddress],
@@ -107,6 +108,7 @@ try {
     ].join('\n'),
   );
 } finally {
+  // Le wallet source est toujours libéré, même si le transfert échoue.
   await publicClient.request({
     method: 'anvil_stopImpersonatingAccount',
     params: [whaleAddress],

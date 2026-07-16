@@ -4,6 +4,7 @@ const { getPool } = require('../config/database');
 const abonnementService = require('./abonnementService');
 const subscriptionRenewalService = require('./subscriptionRenewalService');
 const {
+  BILLING_PERIOD_DAYS,
   ETH_CHAIN_ID,
   ETH_NETWORK_NAME,
   PLAN_CODES,
@@ -34,6 +35,7 @@ const subscriptionCoreAbi = [
 ];
 
 let intervalHandle = null;
+// Un nouveau cycle ne démarre pas tant que le précédent n'est pas terminé.
 let isRunning = false;
 
 function getRunnerConfig() {
@@ -88,6 +90,16 @@ async function assertContractDeployed(publicClient, address, label = 'contrat') 
     error.statusCode = 409;
     throw error;
   }
+}
+
+async function waitForSuccessfulReceipt(publicClient, hash) {
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') {
+    const error = new Error('La transaction USDC a échoué.');
+    error.statusCode = 422;
+    throw error;
+  }
+  return receipt;
 }
 
 async function listDueRenewals(limit = AUTO_RENEW_RUNNER_BATCH_SIZE) {
@@ -178,12 +190,12 @@ async function persistSuccessfulCharge(
            WHEN premium_expires_at IS NOT NULL AND premium_expires_at > NOW() THEN premium_expires_at
            ELSE NOW()
          END,
-         INTERVAL 1 MONTH
+         INTERVAL ? DAY
        ),
            premium_cancel_at_period_end = FALSE,
            quota_cleanup_required = FALSE
        WHERE id = ?`,
-      [planId, userId],
+      [planId, BILLING_PERIOD_DAYS, userId],
     );
 
     const [userRows] = await connection.execute(
@@ -212,7 +224,7 @@ async function persistSuccessfulCharge(
         walletAddress,
         ETH_CHAIN_ID,
         ETH_NETWORK_NAME,
-        smartContractAddress || SUBSCRIPTION_CORE_ADDRESS,
+        subscriptionRenewalService.resolveConfiguredContractAddress(smartContractAddress),
         mandateReference,
         paymentResult.insertId,
         transactionHash,
@@ -242,7 +254,7 @@ async function recordRenewalSuccess(row, transactionHash) {
     planCode: row.plan_code,
     planPriceEur: row.plan_price_eur,
     walletAddress: row.wallet_address,
-    smartContractAddress: row.smart_contract_address || SUBSCRIPTION_CORE_ADDRESS,
+    smartContractAddress: subscriptionRenewalService.resolveConfiguredContractAddress(),
     transactionHash,
   });
 }
@@ -278,7 +290,7 @@ async function recordRenewalFailure(rowId, failureReason) {
 }
 
 async function processDueRenewal(row, clients) {
-  const contractAddress = row.smart_contract_address || SUBSCRIPTION_CORE_ADDRESS;
+  const contractAddress = subscriptionRenewalService.resolveConfiguredContractAddress();
   await assertContractDeployed(clients.publicClient, contractAddress, 'SubscriptionCore');
   let hash;
   try {
@@ -296,7 +308,7 @@ async function processDueRenewal(row, clients) {
     throw error;
   }
 
-  await clients.publicClient.waitForTransactionReceipt({ hash });
+  await waitForSuccessfulReceipt(clients.publicClient, hash);
   await recordRenewalSuccess(row, hash);
   return hash;
 }
@@ -322,6 +334,10 @@ async function activateUsdcSubscriptionForUser(
     throw error;
   }
 
+  const contractAddress = subscriptionRenewalService.resolveConfiguredContractAddress(
+    smartContractAddress,
+  );
+
   const premiumPlan = await abonnementService.getAbonnementByCode(PLAN_CODES.PREMIUM);
   if (!premiumPlan) {
     const error = new Error('Plan Premium indisponible.');
@@ -333,11 +349,10 @@ async function activateUsdcSubscriptionForUser(
   const clients = buildClients();
   await assertContractDeployed(
     clients.publicClient,
-    smartContractAddress || SUBSCRIPTION_CORE_ADDRESS,
+    contractAddress,
     'SubscriptionCore',
   );
 
-  const contractAddress = smartContractAddress || SUBSCRIPTION_CORE_ADDRESS;
   const onchainState = await subscriptionRenewalService.getOnchainAutoRenewState({
     walletAddress,
     smartContractAddress: contractAddress,
@@ -350,6 +365,16 @@ async function activateUsdcSubscriptionForUser(
       nextRenewalAt: onchainState.paidUntilDate,
       transactionHash: null,
     };
+  }
+
+  if (
+    !onchainState?.enabled
+    || BigInt(onchainState.maxTokenAmountPerCharge || '0') < USDC_MONTHLY_PRICE_UNITS
+    || BigInt(onchainState.allowance || '0') < USDC_MONTHLY_PRICE_UNITS
+  ) {
+    const error = new Error('Le paiement USDC n’est pas correctement autorisé.');
+    error.statusCode = 409;
+    throw error;
   }
 
   let hash;
@@ -373,14 +398,14 @@ async function activateUsdcSubscriptionForUser(
     throw error;
   }
 
-  await clients.publicClient.waitForTransactionReceipt({ hash });
+  await waitForSuccessfulReceipt(clients.publicClient, hash);
   await persistSuccessfulCharge({
     userId,
     planId: premiumPlan.id,
     planCode: premiumPlan.code,
     planPriceEur: premiumPlan.prix,
     walletAddress,
-    smartContractAddress,
+    smartContractAddress: contractAddress,
     mandateReference,
     transactionHash: hash,
   });
@@ -415,6 +440,7 @@ async function runAutoRenewalCycle() {
           console.log(`[auto-renew] Couverture déjà active resynchronisée pour user=${row.utilisateur_id}.`);
           continue;
         }
+        // Une erreur suspend cet abonnement sans arrêter le reste du lot.
         const failureReason = normalizeErrorMessage(error);
         await recordRenewalFailure(row.id, failureReason);
         console.warn(`[auto-renew] Echec pour user=${row.utilisateur_id}: ${failureReason}`);
