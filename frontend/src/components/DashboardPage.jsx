@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedTransactionAccountIds, setSelectedTransactionAccountIds] = useState([]);
   const [newAccount, setNewAccount] = useState(createEmptyAccountForm);
   const [customTaux, setCustomTaux] = useState(false);
   const [actionMessage, setActionMessage] = useState(null);
@@ -108,6 +109,11 @@ export default function DashboardPage() {
     setAccountModalMessage(null);
   };
 
+  const handleOpenAccountTransactions = (accountId) => {
+    setSelectedTransactionAccountIds([Number(accountId)]);
+    setActiveTab('transactions');
+  };
+
   const renderTabContent = () => {
     if (activeTab === 'overview') {
       return (
@@ -117,6 +123,7 @@ export default function DashboardPage() {
           onOpenAddModal={() => setShowAddModal(true)}
           onEditAccount={handleEditAccount}
           onDeleteAccount={handleDeleteAccount}
+          onOpenTransactions={handleOpenAccountTransactions}
         />
       );
     }
@@ -128,6 +135,8 @@ export default function DashboardPage() {
           revenus={revenus}
           comptes={comptes}
           loadingTransactions={loadingTransactions}
+          selectedAccountIds={selectedTransactionAccountIds}
+          onSelectedAccountIdsChange={setSelectedTransactionAccountIds}
           onCreateDepense={createDepense}
           onUpdateDepense={updateDepense}
           onDeleteDepense={deleteDepense}

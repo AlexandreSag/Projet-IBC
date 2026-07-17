@@ -9,6 +9,8 @@ export default function DashboardTransactionsTab({
   revenus,
   comptes,
   loadingTransactions,
+  selectedAccountIds,
+  onSelectedAccountIdsChange,
   onCreateDepense,
   onUpdateDepense,
   onDeleteDepense,
@@ -17,7 +19,6 @@ export default function DashboardTransactionsTab({
   onDeleteRevenu,
 }) {
   const [activeManagerModal, setActiveManagerModal] = useState(null);
-  const [showFilterInput, setShowFilterInput] = useState(false);
   const [filterText, setFilterText] = useState('');
 
   const euroFormatter = useMemo(
@@ -53,14 +54,21 @@ export default function DashboardTransactionsTab({
 
   const filteredTransactions = useMemo(() => {
     const query = filterText.trim().toLowerCase();
-    if (!query) return recentTransactions;
 
     return recentTransactions.filter((transaction) => {
+      if (
+        selectedAccountIds.length > 0
+        && !selectedAccountIds.includes(transaction.compteId)
+      ) {
+        return false;
+      }
+
+      if (!query) return true;
       const nom = (transaction.nom || '').toLowerCase();
       const description = (transaction.description || '').toLowerCase();
       return nom.includes(query) || description.includes(query);
     });
-  }, [recentTransactions, filterText]);
+  }, [recentTransactions, filterText, selectedAccountIds]);
 
   const openDepenseManagerModal = () => setActiveManagerModal('depense');
   const openRevenuManagerModal = () => setActiveManagerModal('revenu');
@@ -73,11 +81,12 @@ export default function DashboardTransactionsTab({
         loading={loadingTransactions}
         filterText={filterText}
         onFilterChange={setFilterText}
+        comptes={comptes}
+        selectedAccountIds={selectedAccountIds}
+        onSelectedAccountIdsChange={onSelectedAccountIdsChange}
         onOpenDepenseManagerModal={openDepenseManagerModal}
         onOpenRevenuManagerModal={openRevenuManagerModal}
         euroFormatter={euroFormatter}
-        showFilterInput={showFilterInput}
-        setShowFilterInput={setShowFilterInput}
       />
 
       {activeManagerModal === 'depense' && (

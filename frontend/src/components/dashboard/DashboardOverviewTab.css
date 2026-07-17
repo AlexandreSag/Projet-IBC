@@ -23,6 +23,22 @@
   min-width: 0;
 }
 
+.dashboard-account-open {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.dashboard-account-open:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .dashboard-account-icon {
   width: 44px;
   height: 44px;

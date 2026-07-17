@@ -93,6 +93,7 @@ export function buildTransactionsFromRules(
           nom: resolveRuleNom(rule),
           description: rule.description || '',
           durationLabel: formatRuleDuration(rule),
+          compteId: Number(rule.compte_id),
           compteNom: resolveRuleCompte(rule),
           montant: isCredit ? amountAbs : -amountAbs,
           iconClass: isCredit ? 'fa-solid fa-arrow-trend-up' : 'fa-solid fa-receipt',

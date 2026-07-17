@@ -8,10 +8,41 @@
 
 .dashboard-transaction-filter-row {
   margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
 }
 
-.dashboard-transaction-filter-row input {
+.dashboard-transaction-filter-row > input {
   width: min(420px, 100%);
+}
+
+.dashboard-account-filters {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-account-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.48rem 0.7rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.dashboard-account-filter:has(input:checked) {
+  border-color: var(--couleur-primaire);
+  color: var(--couleur-primaire-texte);
+  background: rgba(0, 153, 196, 0.08);
+}
+
+.dashboard-account-filter input {
+  width: auto;
+  margin: 0;
 }
 
 .dashboard-transactions-table-wrap {
@@ -237,7 +268,11 @@
     flex: 1 1 100%;
   }
 
-  .dashboard-transaction-filter-row input {
+  .dashboard-transaction-filter-row > input {
+    width: 100%;
+  }
+
+  .dashboard-account-filters {
     width: 100%;
   }
 

@@ -5,12 +5,28 @@ export default function DashboardTransactionsList({
   loading,
   filterText,
   onFilterChange,
+  comptes,
+  selectedAccountIds,
+  onSelectedAccountIdsChange,
   onOpenDepenseManagerModal,
   onOpenRevenuManagerModal,
   euroFormatter,
-  showFilterInput,
-  setShowFilterInput,
 }) {
+  const hasActiveFilters = filterText.trim() || selectedAccountIds.length > 0;
+
+  const toggleAccount = (accountId) => {
+    onSelectedAccountIdsChange(
+      selectedAccountIds.includes(accountId)
+        ? selectedAccountIds.filter((id) => id !== accountId)
+        : [...selectedAccountIds, accountId],
+    );
+  };
+
+  const resetFilters = () => {
+    onFilterChange('');
+    onSelectedAccountIdsChange([]);
+  };
+
   return (
     <section className="dashboard-panel">
       <div className="dashboard-panel-header">
@@ -19,13 +35,6 @@ export default function DashboardTransactionsList({
           <p>Historique des occurrences de transactions</p>
         </div>
         <div className="dashboard-transaction-actions">
-          <button
-            type="button"
-            className="btn ghost small"
-            onClick={() => setShowFilterInput((prev) => !prev)}
-          >
-            <i className="fa-solid fa-filter" aria-hidden="true" /> Filtrer
-          </button>
           <button type="button" className="btn primary small" onClick={onOpenDepenseManagerModal}>
             <i className="fa-solid fa-wallet" aria-hidden="true" /> Gérer mes dépenses
           </button>
@@ -34,16 +43,31 @@ export default function DashboardTransactionsList({
           </button>
         </div>
       </div>
-      {showFilterInput && (
-        <div className="dashboard-transaction-filter-row">
-          <input
-            type="text"
-            placeholder="Filtrer par nom ou description"
-            value={filterText}
-            onChange={(event) => onFilterChange(event.target.value)}
-          />
+      <div className="dashboard-transaction-filter-row" aria-label="Filtres des transactions">
+        <input
+          type="search"
+          placeholder="Filtrer par nom ou description"
+          value={filterText}
+          onChange={(event) => onFilterChange(event.target.value)}
+        />
+        <div className="dashboard-account-filters">
+          {comptes.map((compte) => (
+            <label key={compte.id} className="dashboard-account-filter">
+              <input
+                type="checkbox"
+                checked={selectedAccountIds.includes(Number(compte.id))}
+                onChange={() => toggleAccount(Number(compte.id))}
+              />
+              <span>{compte.nom_court}</span>
+            </label>
+          ))}
         </div>
-      )}
+        {hasActiveFilters && (
+          <button type="button" className="btn ghost small" onClick={resetFilters}>
+            Réinitialiser
+          </button>
+        )}
+      </div>
 
       <div className="dashboard-transactions-table-wrap">
         <table className="dashboard-transactions-table">

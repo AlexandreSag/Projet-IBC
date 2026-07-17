@@ -6,6 +6,7 @@ export default function DashboardOverviewTab({
   onOpenAddModal,
   onEditAccount,
   onDeleteAccount,
+  onOpenTransactions,
 }) {
   const euroFormatter = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 
@@ -27,7 +28,12 @@ export default function DashboardOverviewTab({
           ) : comptes.length > 0 ? (
             comptes.map((compte) => (
               <article key={compte.id} className="dashboard-account-item">
-                <div className="dashboard-account-main">
+                <button
+                  type="button"
+                  className="dashboard-account-main dashboard-account-open"
+                  onClick={() => onOpenTransactions(compte.id)}
+                  title={`Voir les transactions de ${compte.nom_court}`}
+                >
                   <span className="dashboard-account-icon">
                     <i className="fa-solid fa-building-columns" aria-hidden="true" />
                   </span>
@@ -35,7 +41,7 @@ export default function DashboardOverviewTab({
                     <strong>{compte.nom_court}</strong>
                     <p>{compte.description || 'Compte bancaire'}</p>
                   </div>
-                </div>
+                </button>
                 <div className="dashboard-account-right">
                   <strong className="dashboard-account-balance">{euroFormatter.format(compte.solde)}</strong>
                   <div className="dashboard-account-actions">
