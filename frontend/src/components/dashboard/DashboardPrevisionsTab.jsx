@@ -58,9 +58,16 @@ export default function DashboardPrevisionsTab() {
       {
         title: 'Intérêts nets cumulés',
         value: euroFormatter.format(prevision.overview.total_interets || 0),
-        detail: `${prevision.overview.comptes_inactifs || 0} compte(s) non ouverts`,
+        detail: 'Après impôts',
         tone: 'info',
         icon: 'fa-solid fa-sparkles',
+      },
+      {
+        title: 'Impôts estimés',
+        value: euroFormatter.format(prevision.overview.total_impots || 0),
+        detail: 'Selon le taux d’imposition du compte',
+        tone: 'negative',
+        icon: 'fa-solid fa-file-invoice-dollar',
       },
     ];
   }, [euroFormatter, prevision]);
@@ -127,6 +134,7 @@ export default function DashboardPrevisionsTab() {
                     <th scope="col">Revenus</th>
                     <th scope="col">Dépenses</th>
                     <th scope="col">Intérêts nets</th>
+                    <th scope="col">Impôts estimés</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -155,6 +163,9 @@ export default function DashboardPrevisionsTab() {
                       </td>
                       <td data-label="Intérêts nets" className="prevision-amount info">
                         {euroFormatter.format(compte.interets_total || 0)}
+                      </td>
+                      <td data-label="Impôts estimés" className="prevision-amount negative">
+                        {euroFormatter.format(compte.impots_total || 0)}
                       </td>
                     </tr>
                   ))}
@@ -203,6 +214,10 @@ export default function DashboardPrevisionsTab() {
                   <div>
                     <dt>Intérêts nets</dt>
                     <dd className="info">{euroFormatter.format(compte.interets_total || 0)}</dd>
+                  </div>
+                  <div>
+                    <dt>Impôts estimés</dt>
+                    <dd className="negative">{euroFormatter.format(compte.impots_total || 0)}</dd>
                   </div>
                   <div>
                     <dt>Taux annuel</dt>

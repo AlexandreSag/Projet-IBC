@@ -79,7 +79,7 @@
 .prevision-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 920px;
+  min-width: 1040px;
   background: #fcfdff;
 }
 
@@ -328,4 +328,3 @@
     gap: 0.5rem;
   }
 }
-

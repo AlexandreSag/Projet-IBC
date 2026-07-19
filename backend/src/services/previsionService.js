@@ -145,6 +145,7 @@ function buildMonthlyTimeline(compte, targetDate, occurrences) {
       revenusTotal: 0,
       depensesTotal: 0,
       interetsTotal: 0,
+      impotsTotal: 0,
       monthlySnapshots: [],
     };
   }
@@ -153,6 +154,7 @@ function buildMonthlyTimeline(compte, targetDate, occurrences) {
   let revenusTotal = 0;
   let depensesTotal = 0;
   let interetsTotal = 0;
+  let impotsTotal = 0;
   let occurrenceIndex = 0;
   const monthlySnapshots = [];
   const monthlyRate = Number(compte.taux_remuneration || 0) / 100 / 12;
@@ -182,10 +184,14 @@ function buildMonthlyTimeline(compte, targetDate, occurrences) {
 
     // Les opérations du mois sont appliquées avant le calcul des intérêts.
     let interetsMois = 0;
+    let impotsMois = 0;
     if (monthlyRate > 0 && balance > 0) {
+      const interetsBrutsMois = roundCurrency(balance * monthlyRate);
       interetsMois = roundCurrency(balance * monthlyRate * (1 - taxRate));
+      impotsMois = roundCurrency(interetsBrutsMois - interetsMois);
       balance = roundCurrency(balance + interetsMois);
       interetsTotal = roundCurrency(interetsTotal + interetsMois);
+      impotsTotal = roundCurrency(impotsTotal + impotsMois);
     }
 
     monthlySnapshots.push({
@@ -195,6 +201,7 @@ function buildMonthlyTimeline(compte, targetDate, occurrences) {
       revenus: revenusMois,
       depenses: depensesMois,
       interets: interetsMois,
+      impots: impotsMois,
     });
 
     const nextMonthStart = addMonthsClamped(getMonthStart(currentMonthEnd), 1);
@@ -233,6 +240,7 @@ function buildMonthlyTimeline(compte, targetDate, occurrences) {
       revenus: revenusPeriode,
       depenses: depensesPeriode,
       interets: 0,
+      impots: 0,
     });
   }
 
@@ -241,6 +249,7 @@ function buildMonthlyTimeline(compte, targetDate, occurrences) {
     revenusTotal,
     depensesTotal,
     interetsTotal,
+    impotsTotal,
     monthlySnapshots,
   };
 }
@@ -260,6 +269,7 @@ function buildPrevisionForCompte(compte, depenses, revenus, targetDate) {
       revenus_total: 0,
       depenses_total: 0,
       interets_total: 0,
+      impots_total: 0,
       taux_remuneration: Number(compte.taux_remuneration || 0),
       taux_imposition: Number(compte.taux_imposition || 0),
       monthly_snapshots: [],
@@ -281,6 +291,7 @@ function buildPrevisionForCompte(compte, depenses, revenus, targetDate) {
     revenus_total: timeline.revenusTotal,
     depenses_total: timeline.depensesTotal,
     interets_total: timeline.interetsTotal,
+    impots_total: timeline.impotsTotal,
     taux_remuneration: Number(compte.taux_remuneration || 0),
     taux_imposition: Number(compte.taux_imposition || 0),
     monthly_snapshots: timeline.monthlySnapshots,
@@ -339,6 +350,7 @@ async function getPrevisionForUser(userId, targetDate) {
       total_revenus: roundCurrency(summary.total_revenus + compte.revenus_total),
       total_depenses: roundCurrency(summary.total_depenses + compte.depenses_total),
       total_interets: roundCurrency(summary.total_interets + compte.interets_total),
+      total_impots: roundCurrency(summary.total_impots + compte.impots_total),
       comptes_actifs: summary.comptes_actifs + (compte.status === 'active' ? 1 : 0),
       comptes_inactifs: summary.comptes_inactifs + (compte.status === 'inactive' ? 1 : 0),
     }),
@@ -347,6 +359,7 @@ async function getPrevisionForUser(userId, targetDate) {
       total_revenus: 0,
       total_depenses: 0,
       total_interets: 0,
+      total_impots: 0,
       comptes_actifs: 0,
       comptes_inactifs: 0,
     },
