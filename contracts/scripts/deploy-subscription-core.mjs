@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createPublicClient, createWalletClient, formatEther, getAddress, http, parseEther } from 'viem';
+import { createPublicClient, createWalletClient, getAddress, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
   DEFAULT_ANVIL_CHAIN_ID,
@@ -24,7 +24,6 @@ const rpcUrl = DEFAULT_FORK_RPC_URL;
 const account = privateKeyToAccount(DEFAULT_ANVIL_DEPLOYER_PRIVATE_KEY);
 const treasury = getAddress(process.env.SUBSCRIPTION_TREASURY_ADDRESS || account.address);
 const usdcAddress = getAddress(USDC_MAINNET_ADDRESS);
-const ethMonthlyPriceWei = parseEther(process.env.ETH_MONTHLY_PRICE || '0.0034');
 const tokenMonthlyPrice = BigInt(process.env.USDC_MONTHLY_PRICE_UNITS || '9990000');
 
 const clientConfig = {
@@ -43,16 +42,10 @@ const walletClient = createWalletClient({
   account,
 });
 
-const deployerBalance = await publicClient.getBalance({ address: account.address });
-
-if (deployerBalance < ethMonthlyPriceWei) {
-  throw new Error(`ETH insuffisant sur ${account.address}.`);
-}
-
 const hash = await walletClient.deployContract({
   abi: artifact.abi,
   bytecode: `0x${artifact.bytecode}`,
-  args: [treasury, usdcAddress, ethMonthlyPriceWei, tokenMonthlyPrice],
+  args: [treasury, usdcAddress, tokenMonthlyPrice],
 });
 
 const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -68,7 +61,6 @@ process.stdout.write(
     `RPC : ${rpcUrl}`,
     `USDC : ${usdcAddress}`,
     `Trésorerie : ${treasury}`,
-    `Prix mensuel ETH : ${formatEther(ethMonthlyPriceWei)} ETH`,
     `Prix mensuel USDC : ${Number(tokenMonthlyPrice) / 1_000_000} USDC`,
     '',
     'Variables utiles :',

@@ -21,19 +21,10 @@ contract SubscriptionCore {
     address public owner;
     address public treasury;
     IERC20Like public immutable stableToken;
-    uint256 public ethMonthlyPriceWei;
     uint256 public tokenMonthlyPrice;
 
     mapping(address => AutoRenewConfig) public autoRenewConfigs;
 
-    event EthPaymentReceived(
-        address indexed subscriber,
-        uint256 amountWei,
-        uint256 chargedWei,
-        uint256 refundedWei,
-        uint256 monthsGranted,
-        uint256 paidUntil
-    );
     event AutoRenewEnabled(address indexed subscriber, uint256 maxTokenAmountPerCharge, uint256 nextChargeAt);
     event AutoRenewDisabled(address indexed subscriber);
     event AutoRenewCharged(
@@ -44,7 +35,7 @@ contract SubscriptionCore {
         uint256 paidUntil
     );
     event TreasuryUpdated(address indexed treasury);
-    event PricingUpdated(uint256 ethMonthlyPriceWei, uint256 tokenMonthlyPrice);
+    event TokenMonthlyPriceUpdated(uint256 tokenMonthlyPrice);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Owner only");
@@ -54,56 +45,20 @@ contract SubscriptionCore {
     constructor(
         address treasury_,
         address stableToken_,
-        uint256 ethMonthlyPriceWei_,
         uint256 tokenMonthlyPrice_
     ) {
         require(treasury_ != address(0), "Invalid treasury");
         require(stableToken_ != address(0), "Invalid token");
-        require(ethMonthlyPriceWei_ > 0, "Invalid ETH price");
         require(tokenMonthlyPrice_ > 0, "Invalid token price");
 
         owner = msg.sender;
         treasury = treasury_;
         stableToken = IERC20Like(stableToken_);
-        ethMonthlyPriceWei = ethMonthlyPriceWei_;
         tokenMonthlyPrice = tokenMonthlyPrice_;
-    }
-
-    function quoteMonthsForEth(uint256 amountWei) public view returns (uint256 monthsGranted, uint256 refundWei) {
-        monthsGranted = amountWei / ethMonthlyPriceWei;
-        refundWei = amountWei - (monthsGranted * ethMonthlyPriceWei);
     }
 
     function getPaidUntil(address subscriber) external view returns (uint256) {
         return autoRenewConfigs[subscriber].paidUntil;
-    }
-
-    function payWithEth() external payable returns (uint256 monthsGranted, uint256 refundWei) {
-        (monthsGranted, refundWei) = quoteMonthsForEth(msg.value);
-        require(monthsGranted > 0, "Amount too low");
-
-        uint256 chargedWei = msg.value - refundWei;
-        AutoRenewConfig storage config = autoRenewConfigs[msg.sender];
-
-        // Un paiement en avance prolonge la période déjà payée.
-        config.paidUntil = _extendPaidUntil(config.paidUntil, monthsGranted);
-
-        (bool treasurySuccess, ) = treasury.call{value: chargedWei}("");
-        require(treasurySuccess, "Treasury transfer failed");
-
-        if (refundWei > 0) {
-            (bool refundSuccess, ) = msg.sender.call{value: refundWei}("");
-            require(refundSuccess, "Refund failed");
-        }
-
-        emit EthPaymentReceived(
-            msg.sender,
-            msg.value,
-            chargedWei,
-            refundWei,
-            monthsGranted,
-            config.paidUntil
-        );
     }
 
     function enableAutoRenew(uint256 maxTokenAmountPerCharge) external {
@@ -179,13 +134,11 @@ contract SubscriptionCore {
         emit TreasuryUpdated(treasury_);
     }
 
-    function setPricing(uint256 ethMonthlyPriceWei_, uint256 tokenMonthlyPrice_) external onlyOwner {
-        require(ethMonthlyPriceWei_ > 0, "Invalid ETH price");
+    function setTokenMonthlyPrice(uint256 tokenMonthlyPrice_) external onlyOwner {
         require(tokenMonthlyPrice_ > 0, "Invalid token price");
 
-        ethMonthlyPriceWei = ethMonthlyPriceWei_;
         tokenMonthlyPrice = tokenMonthlyPrice_;
-        emit PricingUpdated(ethMonthlyPriceWei_, tokenMonthlyPrice_);
+        emit TokenMonthlyPriceUpdated(tokenMonthlyPrice_);
     }
 
     function _extendPaidUntil(uint256 currentPaidUntil, uint256 monthsGranted) private view returns (uint256) {
