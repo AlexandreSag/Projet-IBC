@@ -40,10 +40,12 @@ services:
       - ibc-public
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: production
+      args:
+        VITE_ETH_RPC_URL: ${VITE_ETH_RPC_URL:-https://anvil.batouney.com}
     restart: unless-stopped
-    environment:
-      VITE_ETH_RPC_URL: ${VITE_ETH_RPC_URL:-https://anvil.batouney.com}
     depends_on:
       - backend
       - anvil

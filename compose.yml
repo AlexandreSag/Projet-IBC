@@ -39,7 +39,9 @@ services:
       - ibc-public
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: development
     environment:
       VITE_ETH_RPC_URL: ${VITE_ETH_RPC_URL:-http://localhost:8545}
     depends_on:
